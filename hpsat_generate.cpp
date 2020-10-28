@@ -46,9 +46,8 @@ static int zerovar;
 static int onevar;
 static int runs;
 static int function;
-static int closed;
+static unsigned long long cmask;
 static unsigned long long cvalue;
-static int pmsb = -1;
 static int greater;
 static int rounded;
 
@@ -386,7 +385,7 @@ do_zero_mod_linear(var_t &rem, const var_t &hdiv)
 {
 	var_t sub = const_var(0);
 	var_t tmp;
-	int max = (pmsb > -1) ? (pmsb + 1) : (maxvar / 2);
+	int max = (maxvar / 2);
 
 	for (int x = maxvar - max + 1; x--;) {
 		for (int y = 0; y != x; y++)
@@ -475,13 +474,9 @@ top:	;
 	varnum = 1;
 	nexpr = 0;
 
-	if (closed) {
-		printf("c The following CNF computes all\n"
-		    "c sums of 0x%08llx\n", cvalue);
-	} else {
-		printf("c The following CNF computes and open adder\n"
-		    "c having %d bits for each variable\n", maxvar);
-	}
+	printf("c The following CNF computes the addition of two %d bit\n"
+	       "c variables into a %d bit sum: ((a + b) & 0x%08llx) = 0x%08llx\n",
+	       maxvar, maxvar, cmask, cvalue);
 
 	var_t a = make_var();
 	var_t b = make_var();
@@ -503,8 +498,8 @@ top:	;
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
 
-	if (closed) {
-		for (z = 0; z != maxvar; z++)
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
 			out_equal(f.z[z], (cvalue >> z) & 1);
 	}
 
@@ -532,13 +527,9 @@ top:	;
 	varnum = 1;
 	nexpr = 0;
 
-	if (closed) {
-		printf("c The following CNF computes and closed 2-adic multiplier\n"
-		    "c having %d bits for each variable and result(0x%08llx)\n", maxvar, cvalue);
-	} else {
-		printf("c The following CNF computes and open 2-adic multiplier\n"
-		    "c having %d bits for each variable\n", maxvar);
-	}
+	printf("c The following CNF computes a 2-adic multiplier\n"
+	       "c having %d bits for each variable and (result & 0x%08llx) = 0x%08llx\n",
+	       maxvar, cmask, cvalue);
 
 	var_t a = make_var();
 	var_t b = make_var();
@@ -565,8 +556,8 @@ top:	;
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
 
-	if (closed) {
-		for (z = 0; z != maxvar; z++)
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
 			out_equal(f.z[z], (cvalue >> z) & 1);
 	}
 
@@ -585,15 +576,10 @@ top:	;
 	varnum = 1;
 	nexpr = 0;
 
-	if (closed) {
-		printf("c The following CNF computes and closed multiplier\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result (0x%08llx)\n", maxvar / 2, maxvar, cvalue);
-	} else {
-		printf("c The following CNF computes and open multiplier\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result\n", maxvar / 2, maxvar);
-	}
+	printf("c The following CNF computes a multiplier\n"
+	       "c having %d bits for each variable and\n"
+	       "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	       maxvar / 2, maxvar, cmask, cvalue);
 
 	var_t a = make_half_var();
 	var_t b = make_half_var();
@@ -620,8 +606,8 @@ top:	;
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
 
-	if (closed) {
-		for (z = 0; z != maxvar; z++)
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
 			out_equal(f.z[z], (cvalue >> z) & 1);
 	}
 
@@ -642,9 +628,10 @@ top:	;
 	nexpr = 0;
 
 	printf(
-	    "c The following CNF computes and closed multiplier\n"
-	    "c having %d bits for each variable and \n"
-	    "c %d bits for the result (0x%08llx)\n", maxvar / 2, maxvar, cvalue);
+	    "c The following CNF computes a multiplier\n"
+	    "c having %d bits for each variable and\n"
+	    "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	    maxvar / 2, maxvar, cmask, cvalue);
 
 	var_t a = make_half_var();
 	var_t b = make_half_var();
@@ -699,15 +686,10 @@ top:	;
 	varnum = 1;
 	nexpr = 0;
 
-	if (closed) {
-		printf("c The following CNF computes and closed multiplier\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result (0x%08llx)\n", maxvar / 2, maxvar, cvalue);
-	} else {
-		printf("c The following CNF computes and open multiplier\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result\n", maxvar / 2, maxvar);
-	}
+	printf("c The following CNF computes a linear square\n"
+	       "c having %d bits for each variable and\n"
+	       "c %d bits for the result, (result & 0x%08llx) = 0x%08llx\n",
+	       maxvar / 2, maxvar, cmask, cvalue);
 
 	var_t a = make_half_var();
 	var_t f = make_var();
@@ -736,8 +718,8 @@ top:	;
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
 
-	if (closed) {
-		for (z = 0; z != maxvar; z++)
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
 			out_equal(f.z[z], (cvalue >> z) & 1);
 	}
 
@@ -756,15 +738,10 @@ top:	;
 	varnum = 1;
 	nexpr = 0;
 
-	if (closed) {
-		printf("c The following CNF computes and closed linear modulus\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result (0x%08llx)\n", maxvar / 2, maxvar, cvalue);
-	} else {
-		printf("c The following CNF computes and open linear modulus\n"
-		    "c having %d bits for each variable and \n"
-		    "c %d bits for the result\n", maxvar / 2, maxvar);
-	}
+	printf("c The following CNF computes a linear modulus\n"
+	       "c having %d bits for each variable and\n"
+	       "c %d bits for the result, (result & 0x%08llx) = 0x%08llx\n",
+	       maxvar / 2, maxvar, cmask, cvalue);
 
 	var_t a = make_half_var();
 	var_t f = make_var();
@@ -779,15 +756,11 @@ top:	;
 
 	out_equal(zerovar, 0);
 
-	if (closed) {
-		if (cvalue & 1)
-			out_equal(a.z[0], 1);
-		if (pmsb > -1 && pmsb < (maxvar / 2)) {
-			out_equal(a.z[pmsb], 1);
-			for (z = pmsb + 1; z != (maxvar / 2); z++)
-				out_equal(a.z[z], 0);
-		}
-		for (z = 0; z != maxvar; z++)
+	if (cmask & cvalue & 1)
+		out_equal(a.z[0], 1);
+
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
 			out_equal(f.z[z], (cvalue >> z) & 1);
 	}
 
@@ -800,10 +773,11 @@ top:	;
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -P <value> ]\n", MAXVAR);
+	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
 	fprintf(stderr, "	-g     # b >= a\n");
+	fprintf(stderr, "	-v <X> # specify resulting value\n");
+	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
 	fprintf(stderr, "	-r     # rounded\n");
-	fprintf(stderr, "	-P <n> # predict this bit is true\n");
 	fprintf(stderr, "	-f 1   # Generate linear adder\n");
 	fprintf(stderr, "	-f 2   # Generate 2-adic multiplier\n");
 	fprintf(stderr, "	-f 3   # Generate linear multiplier\n");
@@ -816,7 +790,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:P:";
+	const char *const optstring = "ghf:cb:rv:m:";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
@@ -833,20 +807,16 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			cvalue = strtoull(optarg, NULL, 0);
-			closed = 1;
+			cmask = -1;
+			break;
+		case 'm':
+			cmask = strtoull(optarg, NULL, 0);
 			break;
 		case 'g':
 			greater = 1;
 			break;
 		case 'r':
 			rounded = 1;
-			break;
-		case 'P':
-			pmsb = atoi(optarg);
-			if (pmsb > MAXVAR)
-				pmsb = MAXVAR;
-			else if (pmsb < 0)
-				pmsb = 0;
 			break;
 		default:
 			usage();
@@ -874,7 +844,7 @@ main(int argc, char **argv)
 		generate_mod_linear_cnf();
 		break;
 	case 6:
-		if (!closed)
+		if (!cmask)
 			usage();
 		generate_mul_linear_limit_cnf();
 		break;
