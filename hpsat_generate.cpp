@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2020-2021 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -276,10 +276,8 @@ do_xor(const var_t &a, const var_t &b)
 }
 
 static var_t
-do_add(const var_t &_a, const var_t &_b, size_t max)
+do_add_full_v1(const var_t &a, const var_t &b, size_t max)
 {
-	var_t a = _a;
-	var_t b = _b;
 	var_t r = {};
 	int t[5] = {};
 	int x;
@@ -297,6 +295,75 @@ do_add(const var_t &_a, const var_t &_b, size_t max)
 		r.z[x] = t[1];
 	}
 	return (r);
+}
+
+static var_t
+do_add_full_v2(const var_t &a, const var_t &b, const var_t &z, size_t max)
+{
+	var_t r = {};
+	int t[5] = {};
+	int x;
+
+	t[0] = zerovar;	/* set initial carry input */
+
+	for (x = 0; x != max; x++) {
+		/* t[0] = t[0] ^ z ^ (2 * z) */
+		out_xor(&t[0], t[0], z.z[x]);
+		if (x != 0)
+			out_xor(&t[0], t[0], z.z[x - 1]);
+
+		/* t[1] = a ^ b ^ t[0] */
+		out_xor(&t[1], a.z[x], b.z[x]);
+		out_xor(&t[1], t[1], t[0]);
+
+		/* t[0] = (a & b) | (a & t) | (b & t) */
+		out_and(&t[2], a.z[x], b.z[x]);
+		out_and(&t[3], a.z[x], t[0]);
+		out_and(&t[4], b.z[x], t[0]);
+		out_or(&t[0], t[2], t[3]);
+		out_or(&t[0], t[0], t[4]);
+
+		r.z[x] = t[1];	/* store result */
+	}
+	return (r);
+}
+
+static void
+do_add_half_v2(const var_t &a, var_t &r, var_t &c, const var_t &z, size_t max)
+{
+	int t[5] = {};
+	int x;
+	int y;
+
+	for (x = 0; x != max; x++) {
+		/* t[1] = _a ^ _r ^ _c */
+		out_xor(&t[1], a.z[x], r.z[x]);
+		out_xor(&t[1], t[1], c.z[x]);
+
+		/* t[0] = (_a & _r) | (_a & _c) | (_r & _c) */
+		out_and(&t[2], a.z[x], r.z[x]);
+		out_and(&t[3], a.z[x], c.z[x]);
+		out_and(&t[4], r.z[x], c.z[x]);
+		out_or(&t[0], t[2], t[3]);
+		out_or(&t[0], t[0], t[4]);
+
+		r.z[x] = t[1];
+		c.z[x] = t[0];
+	}
+
+	/* shift up carry and XOR in zero */
+	for (x = max; x--; ) {
+		if (x == 0)
+			y = zerovar;
+		else
+			y = c.z[x - 1];
+
+		/* y = y ^ z ^ (2 * z) */
+		out_xor(&y, y, z.z[x]);
+		if (x != 0)
+			out_xor(&y, y, z.z[x - 1]);
+		c.z[x] = y;
+	}
 }
 
 static void
@@ -433,7 +500,7 @@ do_mul_2adic(const var_t &a, const var_t &b)
 }
 
 static var_t
-do_mul_linear(const var_t &a, const var_t &b)
+do_mul_linear_v1(const var_t &a, const var_t &b)
 {
 	var_t c;
 	var_t d;
@@ -458,8 +525,59 @@ do_mul_linear(const var_t &a, const var_t &b)
 		if (x == 0)
 			c = d;
 		else
-			c = do_add(c, d, maxvar);
+			c = do_add_full_v1(c, d, maxvar);
 	}
+	return (c);
+}
+
+static var_t
+do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
+{
+	var_t c;
+	var_t d;
+	var_t r;
+	int x;
+	int y;
+	int t[maxvar / 2][maxvar / 2];
+
+	for (x = 0; x != maxvar / 2; x++) {
+		for (y = 0; y != maxvar / 2; y++) {
+			out_and(&t[x][y], a.z[x], b.z[y]);
+		}
+	}
+
+	/* set carry to zero */
+	c = zero;
+
+	/* set remainder to zero */
+	r = zero;
+
+	/* do multiply */
+	for (x = 0; x != maxvar / 2; x++) {
+		/* set "d" to zero */
+		d = zero;
+
+		/* XOR in multiplier */
+		for (y = 0; y != maxvar / 2; y++)
+			out_xor(&d.z[x + y], d.z[x + y], t[x][y]);
+
+		/* do half adder */
+		do_add_half_v2(d, r, c, zero, maxvar);
+	}
+#if 1
+	/* compute intermediate product */
+	for (x = 0; x != maxvar; x++) {
+		out_var_equal(c.z[x], zero.z[x]);
+		out_equal(r.z[x], 0);
+	}
+#endif
+	/* add up everything */
+	c = do_add_full_v2(r, c, zero, maxvar);
+
+	/* final XOR */
+	for (x = 0; x != maxvar; x++)
+		out_xor(&c.z[x], c.z[x], zero.z[x]);
+
 	return (c);
 }
 
@@ -493,7 +611,7 @@ top:	;
 
 	out_equal(zerovar, 0);
 
-	e = do_add(a, b, maxvar);
+	e = do_add_full_v1(a, b, maxvar);
 
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
@@ -566,7 +684,7 @@ top:	;
 }
 
 static void
-generate_mul_linear_cnf(void)
+generate_mul_linear_v1_cnf(void)
 {
 top:	;
 	int old_varnum = varnum;
@@ -601,7 +719,64 @@ top:	;
 		out_equal(z, 0);
 	}
 
-	e = do_mul_linear(a, b);
+	e = do_mul_linear_v1(a, b);
+
+	for (z = 0; z != maxvar; z++)
+		out_var_equal(e.z[z], f.z[z]);
+
+	for (z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
+			out_equal(f.z[z], (cvalue >> z) & 1);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_mul_linear_v2_cnf(void)
+{
+top:	;
+	int old_varnum = varnum;
+	int old_nexpr = nexpr;
+	int z;
+
+	varnum = 1;
+	nexpr = 0;
+
+	printf("c The following CNF computes a multiplier\n"
+	       "c having %d bits for each variable and\n"
+	       "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	       maxvar / 2, maxvar, cmask, cvalue);
+
+	var_t a = make_half_var();
+	var_t b = make_half_var();
+	var_t f = make_var();
+#if 1
+	var_t &zero = f;
+#else
+	var_t zero = make_var();
+#endif
+	var_t e;
+
+	zerovar = make_one_var();
+	onevar = -zerovar;
+
+	for (z = 0; z != maxvar / 2; z++)
+		printf("c Solution in %d + %d = %d, %d\n", a.z[z], b.z[z], f.z[z], f.z[z + maxvar / 2]);
+	for (z = 0; z != maxvar; z++)
+		printf("c Solution for zero in %d\n", zero.z[z]);
+
+	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+
+	out_equal(zerovar, 0);
+
+	if (greater) {
+		do_greater(&z, a, maxvar / 2, b, maxvar / 2, false);
+		out_equal(z, 0);
+	}
+
+	e = do_mul_linear_v2(a, b, zero);
 
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
@@ -663,7 +838,7 @@ top:	;
 	do_greater(&z, a, maxvar / 2, h, maxvar / 2, false);
 	out_equal(z, 1);
 
-	e = do_mul_linear(a, b);
+	e = do_mul_linear_v1(a, b);
 
 	for (z = 0; z != maxvar; z++)
 		out_var_equal(e.z[z], f.z[z]);
@@ -705,12 +880,12 @@ top:	;
 
 	out_equal(zerovar, 0);
 
-	e = do_mul_linear(a, a);
+	e = do_mul_linear_v1(a, a);
 
 	if (rounded) {
 		var_t b = make_var();
 
-		e = do_add(e, b, maxvar);
+		e = do_add_full_v1(e, b, maxvar);
 		do_greater(&z, b, 1 + maxvar, a, maxvar, false);
 		out_equal(z, 0);
 	}
@@ -780,10 +955,11 @@ usage(void)
 	fprintf(stderr, "	-r     # rounded\n");
 	fprintf(stderr, "	-f 1   # Generate linear adder\n");
 	fprintf(stderr, "	-f 2   # Generate 2-adic multiplier\n");
-	fprintf(stderr, "	-f 3   # Generate linear multiplier\n");
+	fprintf(stderr, "	-f 3   # Generate linear multiplier (v1)\n");
 	fprintf(stderr, "	-f 4   # Generate linear square\n");
 	fprintf(stderr, "	-f 5   # Generate linear zero mod\n");
 	fprintf(stderr, "	-f 6 -v <X> # Generate linear multiplier with variable limit\n");
+	fprintf(stderr, "	-f 7   # Generate linear multiplier (v2)\n");
 	exit(EX_USAGE);
 }
 
@@ -835,7 +1011,7 @@ main(int argc, char **argv)
 		generate_mul_2adic_cnf();
 		break;
 	case 3:
-		generate_mul_linear_cnf();
+		generate_mul_linear_v1_cnf();
 		break;
 	case 4:
 		generate_sqr_linear_cnf();
@@ -847,6 +1023,9 @@ main(int argc, char **argv)
 		if (!cmask)
 			usage();
 		generate_mul_linear_limit_cnf();
+		break;
+	case 7:
+		generate_mul_linear_v2_cnf();
 		break;
 	default:
 		usage();
