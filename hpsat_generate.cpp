@@ -475,25 +475,22 @@ do_mul_2adic(const var_t &a, const var_t &b)
 	var_t c;
 	int x;
 	int y;
-	int z[maxvar][maxvar];
+	int z[maxvar / 2][maxvar / 2];
 	int t;
 
-	memset(&c, 0, sizeof(c));
+	for (x = 0; x != maxvar; x++)
+		c.z[x] = zerovar;
 
-	for (x = 0; x != maxvar; x++) {
-		for (y = 0; y != maxvar; y++) {
+	for (x = 0; x != maxvar / 2; x++) {
+		for (y = 0; y != maxvar / 2; y++) {
 			out_and(&z[x][y], a.z[x], b.z[y]);
 		}
 	}
 
-	for (x = 0; x != maxvar; x++) {
-		for (y = 0; y != maxvar; y++) {
-			t = (x + y) % maxvar;
-			if (c.z[t] == 0) {
-				c.z[t] = z[x][y];
-			} else {
-				out_xor(&c.z[t], c.z[t], z[x][y]);
-			}
+	for (x = 0; x != maxvar / 2; x++) {
+		for (y = 0; y != maxvar / 2; y++) {
+			t = x + y;
+			out_xor(&c.z[t], c.z[t], z[x][y]);
 		}
 	}
 	return (c);
@@ -649,8 +646,8 @@ top:	;
 	       "c having %d bits for each variable and (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar, cmask, cvalue);
 
-	var_t a = make_var();
-	var_t b = make_var();
+	var_t a = make_half_var();
+	var_t b = make_half_var();
 	var_t f = make_var();
 	var_t e;
 
@@ -665,7 +662,7 @@ top:	;
 	out_equal(zerovar, 0);
 
 	if (greater) {
-		do_greater(&z, a, maxvar, b, maxvar, false);
+		do_greater(&z, a, maxvar / 2, b, maxvar / 2, false);
 		out_equal(z, 0);
 	}
 
