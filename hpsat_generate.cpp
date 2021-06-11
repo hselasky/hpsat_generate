@@ -47,6 +47,7 @@ static unsigned long long cmask;
 static unsigned long long cvalue;
 static int greater;
 static int rounded;
+static int maxsat;
 
 #define	printf(...) do { \
     if (runs) \
@@ -111,6 +112,9 @@ do_cnf_reset(void)
 static void
 do_cnf_header(void)
 {
+	if (maxsat)
+		printf("c Solution is given by maximum variables set to one\n");
+
 	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
 
 	(variable_t(zerovar)).equal_to(false);
@@ -367,6 +371,38 @@ out_triplet(int a, int b, int c)
 	nexpr++;
 }
 
+static void
+out_dual(int a, int b)
+{
+	int array[2];
+	int t;
+
+	assert(a != 0);
+	assert(b != 0);
+
+	array[0] = a;
+	array[1] = b;
+
+	for (a = 0; a != 2; a++) {
+		for (b = a + 1; b != 2; b++) {
+			if (array[a] > array[b]) {
+				t = array[b];
+				array[b] = array[a];
+				array[a] = t;
+			}
+		}
+	}
+
+	for (t = a = 0; a != 2; a++) {
+		if (array[a] != t) {
+			t = array[a];
+			printf("%d ", t);
+		}
+	}
+	printf("0\n");
+	nexpr++;
+}
+
 void
 variable_t :: equal_to(bool value) const
 {
@@ -395,7 +431,41 @@ variable_t :: operator &(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (zerovar);
+	} else if (maxsat) {
+		/*
+		 * Truth table for (a ^ v&o)
+		 * a v   (a & !v)
+		 * 0 0      0
+		 * 0 1      0
+		 * 1 0      1
+		 * 1 1      0
+		 *
+		 * a o   (a & !o)
+		 * 0 0      0
+		 * 0 1      0
+		 * 1 0      1
+		 * 1 1      0
+		 */
+		const int a = new_variable();
+
+		out_dual(-a, v);
+		out_dual(-a, other.v);
+
+		return (a);
 	} else {
+		/*
+		 * Truth table:
+		 *
+		 * a v o  (a ^ v&o)
+		 * 0 0 0     0
+		 * 0 0 1     0
+		 * 0 1 0     0
+		 * 0 1 1     1
+		 * 1 0 0     1
+		 * 1 0 1     1
+		 * 1 1 0     1
+		 * 1 1 1     0
+		 */
 		const int a = new_variable();
 
 		out_triplet(a, -v, -other.v);
@@ -452,6 +522,8 @@ variable_t :: operator |(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (-zerovar);
+	} else if (maxsat) {
+		return (*this ^ other ^ (*this & other));
 	} else {
 		const int a = new_variable();
 
@@ -950,6 +1022,7 @@ static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
+	fprintf(stderr, "	-M     # output solution as a max sat\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
@@ -967,7 +1040,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:m:";
+	const char *const optstring = "ghf:cb:rv:m:M";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
@@ -985,6 +1058,9 @@ main(int argc, char **argv)
 		case 'v':
 			cvalue = strtoull(optarg, NULL, 0);
 			cmask = -1;
+			break;
+		case 'M':
+			maxsat = 1;
 			break;
 		case 'm':
 			cmask = strtoull(optarg, NULL, 0);
