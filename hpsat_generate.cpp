@@ -448,6 +448,8 @@ variable_t :: operator &(const variable_t &other) const
 		 */
 		const int a = new_variable();
 
+		printf("c prefer v%d = true\n", a);
+
 		out_dual(-a, v);
 		out_dual(-a, other.v);
 
