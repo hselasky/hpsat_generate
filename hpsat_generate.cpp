@@ -35,15 +35,12 @@
 
 #define	MAXVAR 64
 
-typedef struct var {
-	int	z[MAXVAR];
-} var_t;
-
 static int varnum;
 static int nexpr;
-static int maxvar;
+static int old_varnum;
+static int old_nexpr;
+static size_t maxvar;
 static int zerovar;
-static int onevar;
 static int runs;
 static int function;
 static unsigned long long cmask;
@@ -51,7 +48,258 @@ static unsigned long long cvalue;
 static int greater;
 static int rounded;
 
-#define	printf(...) do { if (runs) printf(__VA_ARGS__); } while (0)
+#define	printf(...) do { \
+    if (runs) \
+	printf(__VA_ARGS__); \
+} while (0)
+
+static int
+new_variable(void)
+{
+	return (varnum++);
+}
+
+class variable_t {
+public:
+	int v;
+	variable_t(void) {
+		v = zerovar;
+		assert(v != 0);
+	};
+	variable_t(int other) {
+		v = other;
+		assert(v != 0);
+	};
+	variable_t operator =(int other) {
+		v = other;
+		assert(v != 0);
+		return (*this);
+	};
+	variable_t operator =(const variable_t &other) {
+		if (&other != this) {
+			v = other.v;
+			assert(v != 0);
+		}
+		return (*this);
+	};
+	void equal_to(bool) const;
+	void equal_to(const variable_t &other) const;
+
+	variable_t operator ~(void) const {
+		variable_t ret = -v;
+		assert(v != 0);
+		return (ret);
+	};
+	variable_t operator &(const variable_t &) const;
+	variable_t &operator &=(const variable_t &);
+	variable_t operator ^(const variable_t &) const;
+	variable_t &operator ^=(const variable_t &);
+	variable_t operator |(const variable_t &) const;
+	variable_t &operator |=(const variable_t &);
+};
+
+static void
+do_cnf_reset(void)
+{
+	old_varnum = varnum;
+	old_nexpr = nexpr;
+	varnum = 1;
+	nexpr = 0;
+	zerovar = new_variable();
+}
+
+static void
+do_cnf_header(void)
+{
+	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+
+	(variable_t(zerovar)).equal_to(false);
+}
+
+class var_t {
+public:
+	variable_t *z;
+
+	var_t(void) {
+		z = new variable_t [maxvar];
+	};
+
+	var_t(const var_t &other) {
+		z = new variable_t [maxvar];
+
+		for (size_t x = 0; x != maxvar; x++)
+			z[x] = other.z[x];
+	};
+
+	~var_t(void) {
+		delete [] z;
+	};
+
+	var_t operator =(const var_t &other) {
+		if (&other != this) {
+			for (size_t x = 0; x != maxvar; x++)
+				z[x] = other.z[x];
+		}
+		return (*this);
+	};
+
+	void alloc(size_t max = maxvar) {
+		for (size_t x = 0; x != max; x++)
+			z[x].v = new_variable();
+	};
+
+	void from_const(uint64_t var) {
+		for (size_t x = 0; x != maxvar; x++) {
+			if (x >= 64)
+				z[x] = zerovar;
+			else
+				z[x] = ((var >> x) & 1) ? -zerovar : zerovar;
+		}
+	};
+
+	void equal_to(bool other) const {
+		for (size_t x = 0; x != maxvar; x++)
+			z[x].equal_to(other);
+	};
+
+	void equal_to(const var_t &other) const {
+		for (size_t x = 0; x != maxvar; x++)
+			z[x].equal_to(other.z[x]);
+	};
+
+	var_t operator ~(void) const {
+		var_t r = *this;
+		for (size_t x = 0; x != maxvar; x++)
+			r.z[x] = ~r.z[x];
+		return (r);
+	};
+
+	var_t operator ^(const var_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] ^ other.z[x];
+		return (c);
+	};
+
+	var_t operator ^(const variable_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] ^ other;
+		return (c);
+	};
+
+	var_t operator &(const var_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] & other.z[x];
+		return (c);
+	};
+
+	var_t operator &(const variable_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] & other;
+		return (c);
+	};
+
+	var_t operator |(const var_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] | other.z[x];
+		return (c);
+	};
+
+	var_t operator |(const variable_t &other) const {
+		var_t c;
+		for (size_t x = 0; x != maxvar; x++)
+			c.z[x] = z[x] | other;
+		return (c);
+	};
+
+	var_t operator <<(size_t shift) const {
+		var_t c;
+		if (shift < maxvar) {
+			for (size_t x = 0; x != maxvar - shift; x++)
+				c.z[x + shift] = z[x];
+		}
+		return (c);
+	};
+
+	var_t operator +(const var_t &other) const {
+		variable_t carry = zerovar;
+		var_t r;
+
+		for (size_t x = 0; x != maxvar; x++) {
+			r.z[x] = z[x] ^ other.z[x] ^ carry;
+			carry = (z[x] & carry) ^ (other.z[x] & carry) ^ (z[x] & other.z[x]);
+		}
+		return (r);
+	};
+
+	var_t &operator +=(const var_t &other) {
+		*this = *this + other;
+		return (*this);
+	};
+
+	variable_t operator >(const var_t &other) {
+		variable_t y;
+		variable_t t;
+		variable_t n = -zerovar;
+		variable_t r = zerovar;
+		size_t s = maxvar;
+
+		while (s--) {
+			const variable_t &va = z[s];
+			const variable_t &vb = other.z[s];
+
+			y = va ^ vb;
+			t = y & va & n;
+			r = r | t;
+			n = n & ~y;
+		}
+		return (r);
+	};
+
+	variable_t operator >=(const var_t &other) {
+		variable_t y;
+		variable_t t;
+		variable_t n = -zerovar;
+		variable_t r = zerovar;
+		size_t s = maxvar;
+
+		while (s--) {
+			const variable_t &va = z[s];
+			const variable_t &vb = other.z[s];
+
+			y = va ^ vb;
+			t = y & va & n;
+			r = r | t;
+			n = n & ~y;
+		}
+		r = r | n;
+		return (r);
+	};
+
+	variable_t operator <(const var_t &other) {
+		variable_t y;
+		variable_t t;
+		variable_t n = -zerovar;
+		variable_t r = zerovar;
+		size_t s = maxvar;
+
+		while (s--) {
+			const variable_t &va = z[s];
+			const variable_t &vb = other.z[s];
+
+			y = va ^ vb;
+			t = y & va & n;
+			r = r | t;
+			n = n & ~y;
+		}
+		r = r | n;
+		return (~r);
+	};
+};
 
 static bool
 sub_if_gte_64(uint64_t *pa, uint64_t *ps, uint64_t value)
@@ -86,12 +334,14 @@ sqrt_64(uint64_t z)
 }
 
 static void
-print_triplet(int a, int b, int c)
+out_triplet(int a, int b, int c)
 {
 	int array[3];
 	int t;
 
-	assert(a && b && c);
+	assert(a != 0);
+	assert(b != 0);
+	assert(c != 0);
 
 	array[0] = a;
 	array[1] = b;
@@ -117,380 +367,214 @@ print_triplet(int a, int b, int c)
 	nexpr++;
 }
 
-static void
-out_equal(int a, int value)
+void
+variable_t :: equal_to(bool value) const
 {
-	assert(a);
+	assert(v != 0);
 
-	printf("%d 0\n", value ? a : -a);
-	nexpr += 1;
+	printf("%d 0\n", value ? v : -v);
+	nexpr++;
 }
 
-static void
-out_var_equal(int a, int b)
+void
+variable_t :: equal_to(const variable_t &other) const
 {
-	assert(a && b);
+	assert(v != 0 && other.v != 0);
 
-	printf("%d %d 0\n", -a, b);
-	printf("%d %d 0\n", a, -b);
+	printf("%d %d 0\n", -v, other.v);
+	printf("%d %d 0\n", v, -other.v);
 	nexpr += 2;
 }
 
-static int
-make_one_var(void)
+variable_t
+variable_t :: operator &(const variable_t &other) const
 {
-	int x = varnum;
-
-	varnum++;
-	return (x);
-}
-
-/* a = b & c */
-static void
-out_and(int *pa, int b, int c)
-{
-	if ((b == zerovar || b == onevar) &&
-	    (c == zerovar || c == onevar)) {
-		int bb = (b == onevar);
-		int cc = (c == onevar);
-
-		*pa = ((bb & cc) ? onevar : zerovar);
-		return;
-	}
-
-	*pa = make_one_var();
-
-	if (b == c) {
-		out_var_equal(*pa, b);
-	} else if (b == -c) {
-		out_equal(*pa, 0);
+	if (v == other.v) {
+		/* same variable */
+		return (v);
+	} else if (v == -other.v) {
+		/* inverted same variable */
+		return (zerovar);
 	} else {
-		print_triplet(*pa, -b, -c);
-		print_triplet(-*pa, b, c);
-		print_triplet(-*pa, b, -c);
-		print_triplet(-*pa, -b, c);
+		const int a = new_variable();
+
+		out_triplet(a, -v, -other.v);
+		out_triplet(-a, v, other.v);
+		out_triplet(-a, v, -other.v);
+		out_triplet(-a, -v, other.v);
+
+		return (a);
 	}
 }
 
-/* a = b ^ c */
-static void
-out_xor(int *pa, int b, int c)
+variable_t &
+variable_t :: operator &=(const variable_t &other)
 {
-	if ((b == zerovar || b == onevar) &&
-	    (c == zerovar || c == onevar)) {
-		int bb = (b == onevar);
-		int cc = (c == onevar);
+	*this = *this & other;
+	return (*this);
+}
 
-		*pa = ((bb ^ cc) ? onevar : zerovar);
-		return;
-	}
-
-	*pa = make_one_var();
-
-	if (b == c) {
-		out_equal(*pa, 0);
-	} else if (b == -c) {
-		out_equal(*pa, 1);
+variable_t
+variable_t :: operator ^(const variable_t &other) const
+{
+	if (v == other.v) {
+		/* same variable */
+		return (zerovar);
+	} else if (v == -other.v) {
+		/* inverted same variable */
+		return (-zerovar);
 	} else {
-		print_triplet(*pa, b, -c);
-		print_triplet(*pa, -b, c);
-		print_triplet(-*pa, b, c);
-		print_triplet(-*pa, -b, -c);
+		const int a = new_variable();
+
+		out_triplet(a, v, -other.v);
+		out_triplet(a, -v, other.v);
+		out_triplet(-a, v, other.v);
+		out_triplet(-a, -v, -other.v);
+
+		return (a);
 	}
 }
 
-/* a = b | c */
-static void
-out_or(int *pa, int b, int c)
+variable_t &
+variable_t :: operator ^=(const variable_t &other)
 {
-	if ((b == zerovar || b == onevar) &&
-	    (c == zerovar || c == onevar)) {
-		int bb = (b == onevar);
-		int cc = (c == onevar);
+	*this = *this ^ other;
+	return (*this);
 
-		*pa = ((bb | cc) ? onevar : zerovar);
-		return;
-	}
+}
 
-	*pa = make_one_var();
-
-	if (b == c) {
-		out_var_equal(*pa, b);
-	} else if (b == -c) {
-		out_equal(*pa, 1);
+variable_t
+variable_t :: operator |(const variable_t &other) const
+{
+	if (v == other.v) {
+		/* same variable */
+		return (v);
+	} else if (v == -other.v) {
+		/* inverted same variable */
+		return (-zerovar);
 	} else {
-		print_triplet(*pa, b, -c);
-		print_triplet(*pa, -b, c);
-		print_triplet(*pa, -b, -c);
-		print_triplet(-*pa, b, c);
+		const int a = new_variable();
+
+		out_triplet(a, v, -other.v);
+		out_triplet(a, -v, other.v);
+		out_triplet(a, -v, -other.v);
+		out_triplet(-a, v, other.v);
+
+		return (a);
 	}
 }
 
-static var_t
-make_var(void)
+variable_t &
+variable_t :: operator |=(const variable_t &other)
 {
-	var_t temp = {};
-	int x;
-
-	for (x = 0; x != maxvar; x++)
-		temp.z[x] = make_one_var();
-	return (temp);
+	*this = *this | other;
+	return (*this);
 }
 
 static var_t
-const_var(uint32_t var)
+do_add_full_v2(const var_t &a, const var_t &b, const var_t &z)
 {
-	var_t temp = {};
-	int x;
+	variable_t carry = zerovar;
+	var_t r;
 
-	for (x = 0; x != maxvar; x++) {
-		if (x >= 32)
-			temp.z[x] = zerovar;
-		else
-			temp.z[x] = ((var >> x) & 1) ? onevar : zerovar;
-	}
-	return (temp);
-}
+	for (size_t x = 0; x != maxvar; x++) {
+		carry = carry ^ z.z[x];
 
-static var_t
-make_half_var(void)
-{
-	var_t temp = {};
-	int x;
-
-	for (x = 0; x != maxvar / 2; x++)
-		temp.z[x] = make_one_var();
-	return (temp);
-}
-
-static var_t
-do_xor(const var_t &a, const var_t &b)
-{
-	var_t c;
-	int x;
-
-	for (x = 0; x != maxvar; x++)
-		out_xor(&c.z[x], a.z[x], b.z[x]);
-
-	return (c);
-}
-
-static var_t
-do_add_full_v1(const var_t &a, const var_t &b, size_t max)
-{
-	var_t r = {};
-	int t[5] = {};
-	int x;
-
-	t[0] = zerovar;
-	for (x = 0; x != max; x++) {
-		out_xor(&t[1], a.z[x], b.z[x]);
-		out_xor(&t[1], t[1], t[0]);
-		out_and(&t[2], a.z[x], b.z[x]);
-		out_and(&t[3], a.z[x], t[0]);
-		out_and(&t[4], b.z[x], t[0]);
-		out_or(&t[0], t[2], t[3]);
-		out_or(&t[0], t[0], t[4]);
-
-		r.z[x] = t[1];
-	}
-	return (r);
-}
-
-static var_t
-do_add_full_v2(const var_t &a, const var_t &b, const var_t &z, size_t max)
-{
-	var_t r = {};
-	int t[5] = {};
-	int x;
-
-	t[0] = zerovar;	/* set initial carry input */
-
-	for (x = 0; x != max; x++) {
-		/* t[0] = t[0] ^ z ^ (2 * z) */
-		out_xor(&t[0], t[0], z.z[x]);
 		if (x != 0)
-			out_xor(&t[0], t[0], z.z[x - 1]);
+			carry = carry ^ z.z[x - 1];
 
-		/* t[1] = a ^ b ^ t[0] */
-		out_xor(&t[1], a.z[x], b.z[x]);
-		out_xor(&t[1], t[1], t[0]);
-
-		/* t[0] = (a & b) | (a & t) | (b & t) */
-		out_and(&t[2], a.z[x], b.z[x]);
-		out_and(&t[3], a.z[x], t[0]);
-		out_and(&t[4], b.z[x], t[0]);
-		out_or(&t[0], t[2], t[3]);
-		out_or(&t[0], t[0], t[4]);
-
-		r.z[x] = t[1];	/* store result */
+		r.z[x] = a.z[x] ^ b.z[x] ^ carry;
+		carry = (a.z[x] & b.z[x]) ^ (a.z[x] & carry) ^ (b.z[x] & carry);
 	}
 	return (r);
 }
 
 static void
-do_add_half_v2(const var_t &a, var_t &r, var_t &c, const var_t &z, size_t max)
+do_add_half_v1(const var_t &a, var_t &r, var_t &c, const var_t &z)
 {
-	int t[5] = {};
-	int x;
-	int y;
+	variable_t t[2];
 
-	for (x = 0; x != max; x++) {
-		/* t[1] = _a ^ _r ^ _c */
-		out_xor(&t[1], a.z[x], r.z[x]);
-		out_xor(&t[1], t[1], c.z[x]);
+	for (size_t x = 0; x != maxvar; x++) {
+		t[0] = a.z[x] ^ r.z[x] ^ c.z[x];
+		t[1] = (a.z[x] & r.z[x]) ^ (a.z[x] & c.z[x]) ^ (r.z[x] & c.z[x]);
 
-		/* t[0] = (_a & _r) | (_a & _c) | (_r & _c) */
-		out_and(&t[2], a.z[x], r.z[x]);
-		out_and(&t[3], a.z[x], c.z[x]);
-		out_and(&t[4], r.z[x], c.z[x]);
-		out_or(&t[0], t[2], t[3]);
-		out_or(&t[0], t[0], t[4]);
-
-		r.z[x] = t[1];
-		c.z[x] = t[0];
+		r.z[x] = t[0];
+		c.z[x] = t[1];
 	}
 
 	/* shift up carry and XOR in zero */
-	for (x = max; x--; ) {
+	for (size_t x = maxvar; x--; ) {
+		variable_t y;
+
 		if (x == 0)
 			y = zerovar;
 		else
 			y = c.z[x - 1];
 
-		/* y = y ^ z ^ (2 * z) */
-		out_xor(&y, y, z.z[x]);
+		y = y ^ z.z[x];
 		if (x != 0)
-			out_xor(&y, y, z.z[x - 1]);
+			y = y ^ z.z[x - 1];
+
 		c.z[x] = y;
 	}
 }
 
-static void
-do_greater(int *pc, const var_t &a, int32_t sa, const var_t &b, int32_t sb, bool equal)
-{
-	int y;
-	int t;
-	int n = onevar;
-
-	*pc = zerovar;
-
-	while (sa >= 0 || sb >= 0) {
-		int va = (sa >= 0 && sa < maxvar) ? a.z[sa] : zerovar;
-		int vb = (sb >= 0 && sb < maxvar) ? b.z[sb] : zerovar;
-
-		if (va == 0)
-			va = zerovar;
-		if (vb == 0)
-			vb = zerovar;
-
-		out_xor(&y, va, vb);
-		out_and(&t, y, va);	/* check if "a" is greater */
-		out_and(&t, t, n);	/* check if update shall be applied */
-		out_or(pc, *pc, t);	/* OR in update */
-		out_and(&n, n, -y);	/* update logic */
-
-		sa--;
-		sb--;
-	}
-
-	if (equal)
-		out_or(pc, *pc, n);	/* OR in update */
-}
-
-static int
+static variable_t
 do_sub_if_gte(var_t &a, var_t &b, const var_t &value)
 {
-	var_t x = {};
-	var_t y = {};
-	int t[3];
-	int n;
-	int g;
+	var_t x;
+	var_t y;
 
-	for (int i = 0; i != maxvar; i++) {
-		out_and(&t[0], -a.z[i], b.z[i]);
-		out_and(&t[1], a.z[i], -b.z[i]);
-		out_and(&t[2], -t[1], value.z[i]);
-		out_or(&y.z[i], t[0], t[2]);
+	x = a ^ b ^ value;
+	y = ((~a & b) | (~(a & ~b) & value)) << 1;
 
-		out_or(&t[0], t[0], t[1]);
-		out_xor(&x.z[i], t[0], value.z[i]);
-	}
+	variable_t gte = (x >= y);
 
-	/* compute "x" >= "y" */
+	a = (x & gte) | (a & ~gte);
+	b = (y & gte) | (b & ~gte);
 
-	g = y.z[maxvar - 1];
-	n = -y.z[maxvar - 1];
-
-	for (int i = maxvar; i-- != 1;) {
-		out_xor(&t[0], x.z[i], y.z[i - 1]);
-		out_and(&t[1], t[0], y.z[i - 1]);	/* check if "y" is
-							 * greater */
-		out_and(&t[1], t[1], n);	/* check if update shall be
-						 * applied */
-		out_or(&g, g, t[1]);	/* OR in update */
-		out_and(&n, n, -t[0]);	/* update logic */
-	}
-
-	for (int i = 0; i != maxvar; i++) {
-		out_and(&t[0], x.z[i], -g);
-		out_and(&t[1], a.z[i], g);
-		out_or(&a.z[i], t[0], t[1]);
-
-		if (i == 0)
-			t[0] = zerovar;
-		else
-			out_and(&t[0], y.z[i - 1], -g);
-		out_and(&t[1], b.z[i], g);
-		out_or(&b.z[i], t[0], t[1]);
-	}
-	return (-g);
+	return (gte);
 }
 
 static void
 do_zero_mod_linear(var_t &rem, const var_t &hdiv)
 {
-	var_t sub = const_var(0);
+	var_t sub;
 	var_t tmp;
-	int max = (maxvar / 2);
+	size_t max = (maxvar / 2);
 
-	for (int x = maxvar - max + 1; x--;) {
-		for (int y = 0; y != x; y++)
+	for (size_t x = maxvar - max + 1; x--;) {
+		for (size_t y = 0; y != x; y++)
 			tmp.z[y] = zerovar;
-		for (int y = x; y != (x + max); y++)
+		for (size_t y = x; y != (x + max); y++)
 			tmp.z[y] = hdiv.z[y - x];
-		for (int y = (x + max); y != maxvar; y++)
+		for (size_t y = (x + max); y != maxvar; y++)
 			tmp.z[y] = zerovar;
 
 		do_sub_if_gte(rem, sub, tmp);
 	}
+
 	/* result must be zero */
-	for (int x = 0; x != maxvar; x++)
-		out_var_equal(rem.z[x], sub.z[x]);
+	rem.equal_to(sub);
 }
 
 static var_t
 do_mul_2adic(const var_t &a, const var_t &b)
 {
+	variable_t z[maxvar / 2][maxvar / 2];
 	var_t c;
-	int x;
-	int y;
-	int z[maxvar / 2][maxvar / 2];
-	int t;
 
-	for (x = 0; x != maxvar; x++)
-		c.z[x] = zerovar;
-
-	for (x = 0; x != maxvar / 2; x++) {
-		for (y = 0; y != maxvar / 2; y++) {
-			out_and(&z[x][y], a.z[x], b.z[y]);
+	for (size_t x = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar / 2; y++) {
+			z[x][y] = a.z[x] & b.z[y];
 		}
 	}
 
-	for (x = 0; x != maxvar / 2; x++) {
-		for (y = 0; y != maxvar / 2; y++) {
-			t = x + y;
-			out_xor(&c.z[t], c.z[t], z[x][y]);
+	for (size_t x = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar / 2; y++) {
+			const size_t t = x + y;
+
+			c.z[t] = c.z[t] ^ z[x][y];
 		}
 	}
 	return (c);
@@ -499,30 +583,25 @@ do_mul_2adic(const var_t &a, const var_t &b)
 static var_t
 do_mul_linear_v1(const var_t &a, const var_t &b)
 {
+	variable_t z[maxvar / 2][maxvar / 2];
 	var_t c;
 	var_t d;
-	int x;
-	int y;
-	int z[maxvar / 2][maxvar / 2];
 
-	for (x = 0; x != maxvar / 2; x++) {
-		for (y = 0; y != maxvar / 2; y++) {
-			out_and(&z[x][y], a.z[x], b.z[y]);
+	for (size_t x = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar / 2; y++) {
+			z[x][y] = a.z[x] & b.z[y];
 		}
 	}
 
-	for (x = 0; x != maxvar; x++)
-		c.z[x] = zerovar;
-
-	for (x = 0; x != maxvar / 2; x++) {
-		for (y = 0; y != maxvar; y++)
+	for (size_t x = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar; y++)
 			d.z[y] = zerovar;
-		for (y = 0; y != maxvar / 2; y++)
+		for (size_t y = 0; y != maxvar / 2; y++)
 			d.z[x + y] = z[x][y];
 		if (x == 0)
 			c = d;
 		else
-			c = do_add_full_v1(c, d, maxvar);
+			c = c + d;
 	}
 	return (c);
 }
@@ -530,16 +609,14 @@ do_mul_linear_v1(const var_t &a, const var_t &b)
 static var_t
 do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 {
+	variable_t t[maxvar / 2][maxvar / 2];
 	var_t c;
 	var_t d;
 	var_t r;
-	int x;
-	int y;
-	int t[maxvar / 2][maxvar / 2];
 
-	for (x = 0; x != maxvar / 2; x++) {
-		for (y = 0; y != maxvar / 2; y++) {
-			out_and(&t[x][y], a.z[x], b.z[y]);
+	for (size_t x = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar / 2; y++) {
+			t[x][y] = a.z[x] & b.z[y];
 		}
 	}
 
@@ -550,30 +627,26 @@ do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 	r = zero;
 
 	/* do multiply */
-	for (x = 0; x != maxvar / 2; x++) {
+	for (size_t x = 0; x != maxvar / 2; x++) {
 		/* set "d" to zero */
 		d = zero;
 
 		/* XOR in multiplier */
-		for (y = 0; y != maxvar / 2; y++)
-			out_xor(&d.z[x + y], d.z[x + y], t[x][y]);
+		for (size_t y = 0; y != maxvar / 2; y++)
+			d.z[x + y] = d.z[x + y] ^ t[x][y];
 
 		/* do half adder */
-		do_add_half_v2(d, r, c, zero, maxvar);
+		do_add_half_v1(d, r, c, zero);
 	}
-#if 1
-	/* compute intermediate product */
-	for (x = 0; x != maxvar; x++) {
-		out_var_equal(c.z[x], zero.z[x]);
-		out_equal(r.z[x], 0);
-	}
-#endif
+
+	c.equal_to(zero);
+	r.equal_to(false);
+
 	/* add up everything */
-	c = do_add_full_v2(r, c, zero, maxvar);
+	c = do_add_full_v2(r, c, zero);
 
 	/* final XOR */
-	for (x = 0; x != maxvar; x++)
-		out_xor(&c.z[x], c.z[x], zero.z[x]);
+	c = c ^ zero;
 
 	return (c);
 }
@@ -581,50 +654,39 @@ do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 static void
 generate_adder_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
-	printf("c The following CNF computes the addition of two %d bit\n"
-	       "c variables into a %d bit sum: ((a + b) & 0x%08llx) = 0x%08llx\n",
+top:
+	printf("c The following CNF computes the addition of two %zd bit\n"
+	       "c variables into a %zd bit sum: ((a + b) & 0x%08llx) = 0x%08llx\n",
 	       maxvar, maxvar, cmask, cvalue);
 
-	var_t a = make_var();
-	var_t b = make_var();
-	var_t f = make_var();
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
 	var_t e;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc();
+	b.alloc();
+	f.alloc();
 
-	for (z = 0; z != maxvar; z++)
-		printf("c Solution in %d + %d = %d\n", a.z[z], b.z[z], f.z[z]);
+	for (size_t z = 0; z != maxvar; z++)
+		printf("c Solution in %d + %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	do_cnf_header();
 
-	out_equal(zerovar, 0);
+	e = a + b;
 
-	e = do_add_full_v1(a, b, maxvar);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
-
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	if (greater) {
-		int gt;
-
-		do_greater(&gt, a, maxvar, e, maxvar, false);
-		out_equal(gt, 0);
-		do_greater(&gt, b, maxvar, e, maxvar, false);
-		out_equal(gt, 0);
+		(a > e).equal_to(false);
+		(b > e).equal_to(false);
 	}
 
 	if (runs++ == 0)
@@ -634,46 +696,37 @@ top:	;
 static void
 generate_mul_2adic_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf("c The following CNF computes a 2-adic multiplier\n"
-	       "c having %d bits for each variable and (result & 0x%08llx) = 0x%08llx\n",
+	       "c having %zd bits for each variable and (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t b = make_half_var();
-	var_t f = make_var();
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
 	var_t e;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
 
-	for (z = 0; z != maxvar; z++)
-		printf("c Solution in %d = %d x %d\n", f.z[z], a.z[z], b.z[z]);
+	for (size_t z = 0; z != maxvar; z++)
+		printf("c Solution in %d = %d x %d\n", f.z[z].v, a.z[z].v, b.z[z].v);
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	do_cnf_header();
 
-	out_equal(zerovar, 0);
-
-	if (greater) {
-		do_greater(&z, a, maxvar / 2, b, maxvar / 2, false);
-		out_equal(z, 0);
-	}
+	if (greater)
+		(a > b).equal_to(false);
 
 	e = do_mul_2adic(a, b);
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -683,47 +736,38 @@ top:	;
 static void
 generate_mul_linear_v1_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf("c The following CNF computes a multiplier\n"
-	       "c having %d bits for each variable and\n"
-	       "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	       "c having %zd bits for each variable and\n"
+	       "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar / 2, maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t b = make_half_var();
-	var_t f = make_var();
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
 	var_t e;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
 
-	for (z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z], b.z[z], f.z[z], f.z[z + maxvar / 2]);
+	for (size_t z = 0; z != maxvar / 2; z++)
+		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	do_cnf_header();
 
-	out_equal(zerovar, 0);
-
-	if (greater) {
-		do_greater(&z, a, maxvar / 2, b, maxvar / 2, false);
-		out_equal(z, 0);
-	}
+	if (greater)
+		(a > b).equal_to(false);
 
 	e = do_mul_linear_v1(a, b);
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -733,54 +777,38 @@ top:	;
 static void
 generate_mul_linear_v2_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf("c The following CNF computes a multiplier\n"
-	       "c having %d bits for each variable and\n"
-	       "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	       "c having %zd bits for each variable and\n"
+	       "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar / 2, maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t b = make_half_var();
-	var_t f = make_var();
-#if 1
-	var_t &zero = f;
-#else
-	var_t zero = make_var();
-#endif
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
 	var_t e;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
 
-	for (z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z], b.z[z], f.z[z], f.z[z + maxvar / 2]);
-	for (z = 0; z != maxvar; z++)
-		printf("c Solution for zero in %d\n", zero.z[z]);
+	for (size_t z = 0; z != maxvar / 2; z++)
+		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	do_cnf_header();
 
-	out_equal(zerovar, 0);
+	if (greater)
+		(a > b).equal_to(false);
 
-	if (greater) {
-		do_greater(&z, a, maxvar / 2, b, maxvar / 2, false);
-		out_equal(z, 0);
-	}
+	e = do_mul_linear_v2(a, b, f);
 
-	e = do_mul_linear_v2(a, b, zero);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
-
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -790,58 +818,46 @@ top:	;
 static void
 generate_mul_linear_limit_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
 	unsigned long long cvalue_sqrt = sqrt_64(cvalue);
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf(
 	    "c The following CNF computes a multiplier\n"
-	    "c having %d bits for each variable and\n"
-	    "c having %d bits for (result & 0x%08llx) = 0x%08llx\n",
+	    "c having %zd bits for each variable and\n"
+	    "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
 	    maxvar / 2, maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t b = make_half_var();
-	var_t f = make_var();
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
 	var_t e;
-	var_t g = {};
-	var_t h = {};
+	var_t g;
+	var_t h;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
 
-	for (z = 0; z != maxvar / 2; z++) {
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z], b.z[z], f.z[z], f.z[z + maxvar / 2]);
+	for (size_t z = 0; z != maxvar / 2; z++) {
+		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
 
-		g.z[z] = ((cvalue_sqrt >> z) & 1) ? onevar : zerovar;
-		h.z[z] = (z == 0) ? onevar : zerovar;
+		g.z[z] = ((cvalue_sqrt >> z) & 1) ? -zerovar : zerovar;
+		h.z[z] = (z == 0) ? -zerovar : zerovar;
 	}
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	do_cnf_header();
 
-	out_equal(zerovar, 0);
-
-	do_greater(&z, a, maxvar / 2, g, maxvar / 2, false);
-	out_equal(z, 0);
-
-	do_greater(&z, b, maxvar / 2, g, maxvar / 2, true);
-	out_equal(z, 1);
-
-	do_greater(&z, a, maxvar / 2, h, maxvar / 2, false);
-	out_equal(z, 1);
+	(a > g).equal_to(false);
+	(b >= g).equal_to(true);
+	(a > h).equal_to(true);
 
 	e = do_mul_linear_v1(a, b);
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++)
-		out_equal(f.z[z], (cvalue >> z) & 1);
+	for (size_t z = 0; z != maxvar; z++)
+		f.z[z].equal_to((cvalue >> z) & 1);
 
 	if (runs++ == 0)
 		goto top;
@@ -850,49 +866,44 @@ top:	;
 static void
 generate_sqr_linear_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf("c The following CNF computes a linear square\n"
-	       "c having %d bits for each variable and\n"
-	       "c %d bits for the result, (result & 0x%08llx) = 0x%08llx\n",
+	       "c having %zd bits for each variable and\n"
+	       "c %zd bits for the result, (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar / 2, maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t f = make_var();
+	do_cnf_reset();
+
+	var_t a;
+	var_t f;
 	var_t e;
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	a.alloc(maxvar / 2);
+	f.alloc();
 
-	for (z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d = %d, %d\n", a.z[z], f.z[z], f.z[z + maxvar / 2]);
+	for (size_t z = 0; z != maxvar / 2; z++)
+		printf("c Solution in %d = %d, %d\n", a.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
-
-	out_equal(zerovar, 0);
+	do_cnf_header();
 
 	e = do_mul_linear_v1(a, a);
 
 	if (rounded) {
-		var_t b = make_var();
+		var_t b;
 
-		e = do_add_full_v1(e, b, maxvar);
-		do_greater(&z, b, 1 + maxvar, a, maxvar, false);
-		out_equal(z, 0);
+		b.alloc();
+
+		e = e + b;
+
+		/* limit range of "b" variable */
+		(b > (a << 1)).equal_to(false);
 	}
 
-	for (z = 0; z != maxvar; z++)
-		out_var_equal(e.z[z], f.z[z]);
+	e.equal_to(f);
 
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -902,38 +913,31 @@ top:	;
 static void
 generate_mod_linear_cnf(void)
 {
-top:	;
-	int old_varnum = varnum;
-	int old_nexpr = nexpr;
-	int z;
-
-	varnum = 1;
-	nexpr = 0;
-
+top:
 	printf("c The following CNF computes a linear modulus\n"
-	       "c having %d bits for each variable and\n"
-	       "c %d bits for the result, (result & 0x%08llx) = 0x%08llx\n",
+	       "c having %zd bits for each variable and\n"
+	       "c %zd bits for the result, (result & 0x%08llx) = 0x%08llx\n",
 	       maxvar / 2, maxvar, cmask, cvalue);
 
-	var_t a = make_half_var();
-	var_t f = make_var();
+	do_cnf_reset();
 
-	zerovar = make_one_var();
-	onevar = -zerovar;
+	var_t a;
+	var_t f;
 
-	for (z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d = %d, %d\n", a.z[z], f.z[z], f.z[z + maxvar / 2]);
+	a.alloc(maxvar / 2);
+	f.alloc();
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	for (size_t z = 0; z != maxvar / 2; z++)
+		printf("c Solution in %d = %d, %d\n", a.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
 
-	out_equal(zerovar, 0);
+	do_cnf_header();
 
 	if (cmask & cvalue & 1)
-		out_equal(a.z[0], 1);
+		a.z[0].equal_to(true);
 
-	for (z = 0; z != maxvar; z++) {
+	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			out_equal(f.z[z], (cvalue >> z) & 1);
+			f.z[z].equal_to((cvalue >> z) & 1);
 	}
 
 	do_zero_mod_linear(f, a);
