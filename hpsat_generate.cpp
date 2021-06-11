@@ -425,6 +425,8 @@ variable_t :: equal_to(const variable_t &other) const
 variable_t
 variable_t :: operator &(const variable_t &other) const
 {
+	assert(v != 0 && other.v != 0);
+
 	if (v == other.v) {
 		/* same variable */
 		return (v);
@@ -489,6 +491,8 @@ variable_t :: operator &=(const variable_t &other)
 variable_t
 variable_t :: operator ^(const variable_t &other) const
 {
+	assert(v != 0 && other.v != 0);
+
 	if (v == other.v) {
 		/* same variable */
 		return (zerovar);
@@ -518,6 +522,8 @@ variable_t :: operator ^=(const variable_t &other)
 variable_t
 variable_t :: operator |(const variable_t &other) const
 {
+	assert(v != 0 && other.v != 0);
+
 	if (v == other.v) {
 		/* same variable */
 		return (v);
