@@ -48,6 +48,7 @@ static unsigned long long cvalue;
 static int greater;
 static int rounded;
 static int maxsat;
+static int varlimit;
 
 #define	printf(...) do { \
     if (runs) \
@@ -115,7 +116,10 @@ do_cnf_header(void)
 	if (maxsat)
 		printf("c Solution is given by maximum variables set to one\n");
 
-	printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	if (varlimit)
+		printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+	else
+		printf("p cnf %d %d\n", old_varnum - 1, old_nexpr);
 
 	(variable_t(zerovar)).equal_to(false);
 }
@@ -1031,6 +1035,7 @@ usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
 	fprintf(stderr, "	-M     # output solution as a max sat\n");
+	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
@@ -1048,7 +1053,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:m:M";
+	const char *const optstring = "ghf:cb:rv:m:MV";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
@@ -1078,6 +1083,9 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			rounded = 1;
+			break;
+		case 'V':
+			varlimit = 1;
 			break;
 		default:
 			usage();
