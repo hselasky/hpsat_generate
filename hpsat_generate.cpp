@@ -1293,13 +1293,13 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (maxvar == 0 || (function == 0 && inputexpr == NULL))
+	if (inputexpr != NULL) {
+		generate_input_cnf();
+		return (0);
+	} else if (maxvar == 0 || function == 0)
 		usage();
 
 	switch (function) {
-	case 0:
-		generate_input_cnf();
-		break;
 	case 1:
 		generate_adder_cnf();
 		break;
