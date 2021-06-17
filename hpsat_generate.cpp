@@ -47,8 +47,8 @@ static unsigned long long cmask;
 static unsigned long long cvalue;
 static int greater;
 static int rounded;
-static int maxsat;
 static int varlimit;
+static const char *inputexpr;
 
 #define	printf(...) do { \
     if (runs) \
@@ -72,20 +72,13 @@ public:
 		v = other;
 		assert(v != 0);
 	};
-	variable_t operator =(int other) {
+	variable_t &operator =(int other) {
 		v = other;
 		assert(v != 0);
 		return (*this);
 	};
-	variable_t operator =(const variable_t &other) {
-		if (&other != this) {
-			v = other.v;
-			assert(v != 0);
-		}
-		return (*this);
-	};
-	void equal_to(bool) const;
-	void equal_to(const variable_t &other) const;
+	void equal_to_const(bool) const;
+	void equal_to_var(const variable_t &other) const;
 
 	variable_t operator ~(void) const {
 		variable_t ret = -v;
@@ -113,15 +106,12 @@ do_cnf_reset(void)
 static void
 do_cnf_header(void)
 {
-	if (maxsat)
-		printf("c Solution is given by maximum variables set to one\n");
-
 	if (varlimit)
 		printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
 	else
 		printf("p cnf %d %d\n", old_varnum - 1, old_nexpr);
 
-	(variable_t(zerovar)).equal_to(false);
+	(variable_t(zerovar)).equal_to_const(false);
 }
 
 class var_t {
@@ -143,7 +133,7 @@ public:
 		delete [] z;
 	};
 
-	var_t operator =(const var_t &other) {
+	var_t &operator =(const var_t &other) {
 		if (&other != this) {
 			for (size_t x = 0; x != maxvar; x++)
 				z[x] = other.z[x];
@@ -165,14 +155,14 @@ public:
 		}
 	};
 
-	void equal_to(bool other) const {
+	void equal_to_const(bool other) const {
 		for (size_t x = 0; x != maxvar; x++)
-			z[x].equal_to(other);
+			z[x].equal_to_const(other);
 	};
 
-	void equal_to(const var_t &other) const {
+	void equal_to_var(const var_t &other) const {
 		for (size_t x = 0; x != maxvar; x++)
-			z[x].equal_to(other.z[x]);
+			z[x].equal_to_var(other.z[x]);
 	};
 
 	var_t operator ~(void) const {
@@ -408,7 +398,7 @@ out_dual(int a, int b)
 }
 
 void
-variable_t :: equal_to(bool value) const
+variable_t :: equal_to_const(bool value) const
 {
 	assert(v != 0);
 
@@ -417,7 +407,7 @@ variable_t :: equal_to(bool value) const
 }
 
 void
-variable_t :: equal_to(const variable_t &other) const
+variable_t :: equal_to_var(const variable_t &other) const
 {
 	assert(v != 0 && other.v != 0);
 
@@ -437,29 +427,6 @@ variable_t :: operator &(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (zerovar);
-	} else if (maxsat) {
-		/*
-		 * Truth table for (a ^ v&o)
-		 * a v   (a & !v)
-		 * 0 0      0
-		 * 0 1      0
-		 * 1 0      1
-		 * 1 1      0
-		 *
-		 * a o   (a & !o)
-		 * 0 0      0
-		 * 0 1      0
-		 * 1 0      1
-		 * 1 1      0
-		 */
-		const int a = new_variable();
-
-		printf("c prefer v%d = true\n", a);
-
-		out_dual(-a, v);
-		out_dual(-a, other.v);
-
-		return (a);
 	} else {
 		/*
 		 * Truth table:
@@ -534,8 +501,6 @@ variable_t :: operator |(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (-zerovar);
-	} else if (maxsat) {
-		return (*this ^ other ^ (*this & other));
 	} else {
 		const int a = new_variable();
 
@@ -639,7 +604,7 @@ do_zero_mod_linear(var_t &rem, const var_t &hdiv)
 	}
 
 	/* result must be zero */
-	rem.equal_to(sub);
+	rem.equal_to_var(sub);
 }
 
 static var_t
@@ -723,8 +688,8 @@ do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 		do_add_half_v1(d, r, c, zero);
 	}
 
-	c.equal_to(zero);
-	r.equal_to(false);
+	c.equal_to_var(zero);
+	r.equal_to_const(false);
 
 	/* add up everything */
 	c = do_add_full_v2(r, c, zero);
@@ -761,16 +726,16 @@ top:
 
 	e = a + b;
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	if (greater) {
-		(a > e).equal_to(false);
-		(b > e).equal_to(false);
+		(a > e).equal_to_const(false);
+		(b > e).equal_to_const(false);
 	}
 
 	if (runs++ == 0)
@@ -802,15 +767,15 @@ top:
 	do_cnf_header();
 
 	if (greater)
-		(a > b).equal_to(false);
+		(a > b).equal_to_const(false);
 
 	e = do_mul_2adic(a, b);
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -843,15 +808,15 @@ top:
 	do_cnf_header();
 
 	if (greater)
-		(a > b).equal_to(false);
+		(a > b).equal_to_const(false);
 
 	e = do_mul_linear_v1(a, b);
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -884,15 +849,15 @@ top:
 	do_cnf_header();
 
 	if (greater)
-		(a > b).equal_to(false);
+		(a > b).equal_to_const(false);
 
 	e = do_mul_linear_v2(a, b, f);
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -932,16 +897,16 @@ top:
 
 	do_cnf_header();
 
-	(a > g).equal_to(false);
-	(b >= g).equal_to(true);
-	(a > h).equal_to(true);
+	(a > g).equal_to_const(false);
+	(b >= g).equal_to_const(true);
+	(a > h).equal_to_const(true);
 
 	e = do_mul_linear_v1(a, b);
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++)
-		f.z[z].equal_to((cvalue >> z) & 1);
+		f.z[z].equal_to_const((cvalue >> z) & 1);
 
 	if (runs++ == 0)
 		goto top;
@@ -980,14 +945,14 @@ top:
 		e = e + b;
 
 		/* limit range of "b" variable */
-		(b > (a << 1)).equal_to(false);
+		(b > (a << 1)).equal_to_const(false);
 	}
 
-	e.equal_to(f);
+	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	if (runs++ == 0)
@@ -1017,11 +982,11 @@ top:
 	do_cnf_header();
 
 	if (cmask & cvalue & 1)
-		a.z[0].equal_to(true);
+		a.z[0].equal_to_const(true);
 
 	for (size_t z = 0; z != maxvar; z++) {
 		if ((cmask >> z) & 1)
-			f.z[z].equal_to((cvalue >> z) & 1);
+			f.z[z].equal_to_const((cvalue >> z) & 1);
 	}
 
 	do_zero_mod_linear(f, a);
@@ -1031,15 +996,247 @@ top:
 }
 
 static void
+generate_and_cnf(void)
+{
+top:
+	printf(
+	    "c The following CNF implements an AND circuit\n"
+	    "c having two inputs and one output\n");
+
+	do_cnf_reset();
+
+	variable_t a = new_variable();
+	variable_t b = new_variable();
+	variable_t c;
+
+	printf("c Solution in %d & %d = %d\n", a.v, b.v, c.v);
+
+	do_cnf_header();
+
+	c = (a & b);
+
+	if (cmask & 1)
+		c.equal_to_const(cvalue & 1);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_or_cnf(void)
+{
+top:
+	printf(
+	    "c The following CNF implements an OR circuit\n"
+	    "c having two inputs and one output\n");
+
+	do_cnf_reset();
+
+	variable_t a = new_variable();
+	variable_t b = new_variable();
+	variable_t c;
+
+	printf("c Solution in %d | %d = %d\n", a.v, b.v, c.v);
+
+	do_cnf_header();
+
+	c = (a | b);
+
+	if (cmask & 1)
+		c.equal_to_const(cvalue & 1);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_xor_cnf(void)
+{
+top:
+	printf(
+	    "c The following CNF implements an XOR circuit\n"
+	    "c having two inputs and one output\n");
+
+	do_cnf_reset();
+
+	variable_t a = new_variable();
+	variable_t b = new_variable();
+	variable_t c;
+
+	printf("c Solution in %d ^ %d = %d\n", a.v, b.v, c.v);
+
+	do_cnf_header();
+
+	c = (a ^ b);
+
+	if (cmask & 1)
+		c.equal_to_const(cvalue & 1);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static size_t
+generate_input_maxvar(const char *ptr, uint64_t *pmask)
+{
+	size_t retval = 0;
+
+	while (*ptr) {
+		if (*ptr >= 'a' && *ptr <= 'z') {
+			const size_t z = *ptr - 'a' + 1;
+			if (z > retval)
+				retval = z;
+			*pmask |= (1ULL << (z - 1));
+		} else if (*ptr >= 'A' && *ptr <= 'Z') {
+			const size_t z = *ptr - 'A' + 1;
+			if (z > retval)
+				retval = z;
+			*pmask |= (1ULL << (z - 1));
+		}
+		ptr++;
+	}
+	return (retval);
+}
+
+static variable_t
+generate_input_parse(const var_t &var, const char *ptr)
+{
+	variable_t ret;
+	variable_t opvar;
+	char last = 0;
+	int level = 0;
+
+	while (*ptr) {
+		if (*ptr == '1') {
+			opvar = -zerovar;
+			goto do_var;
+		} else if (*ptr == '0') {
+			opvar = zerovar;
+			goto do_var;
+		} else if (*ptr >= 'a' && *ptr <= 'z') {
+			const size_t n = *ptr - 'a';
+			if (n < maxvar) {
+				opvar = var.z[n];
+				goto do_var;
+			} else {
+				fprintf(stderr, "Invalid variable '%c'\n", *ptr);
+			}
+		} else if (*ptr >= 'A' && *ptr <= 'Z') {
+			const size_t n = *ptr - 'A';
+			if (n < maxvar) {
+				opvar = ~var.z[n];
+				goto do_var;
+			} else {
+				fprintf(stderr, "Invalid variable '%c'\n", *ptr);
+			}
+		} else if (*ptr == '(') {
+			opvar = generate_input_parse(var, ptr + 1);
+		do_var:
+			switch (last) {
+			case 0:
+				ret = opvar;
+				break;
+			case '^':
+				ret ^= opvar;
+				break;
+			case '&':
+				ret &= opvar;
+				break;
+			case '|':
+				ret |= opvar;
+				break;
+			default:
+				fprintf(stderr, "Invalid operator '%c'\n", last);
+				break;
+			}
+			last = 0;
+
+			if (*ptr == '(') {
+				while (*ptr) {
+					if (*ptr == '(')
+						level++;
+					else if (*ptr == ')')
+						level--;
+					if (level == 0)
+						break;
+					ptr++;
+				}
+				if (level != 0)
+					fprintf(stderr, "Unbalanced expression\n");
+			}
+		} else if (*ptr == '^' || *ptr == '&' || *ptr == '|') {
+			if (last)
+				fprintf(stderr, "Duplicate operator '%c'\n", last);
+			last = *ptr;
+		} else if (*ptr == ')') {
+			break;
+		} else if (*ptr == ' ' || *ptr == '\t' || *ptr == '\r' || *ptr == '\n') {
+
+		} else {
+			fprintf(stderr, "Invalid character '%c'\n", *ptr);
+		}
+		if (*ptr == 0)
+			break;
+		ptr++;
+	}
+	if (last != 0)
+		fprintf(stderr, "Missing variable after '%c'\n", last);
+	return (ret);
+}
+
+static void
+generate_input_cnf(void)
+{
+	uint64_t mask = 0;
+	maxvar = generate_input_maxvar(inputexpr, &mask);
+
+top:
+	printf("c This CNF-file implements the following expression\n"
+	       "c\n"
+	       "c   '%s'\n"
+	       "c\n", inputexpr);
+
+	do_cnf_reset();
+
+	var_t var;
+	var.alloc();
+
+	printf("c Variable mapping used:\n"
+	       "c\n");
+	for (size_t x = 0; x != maxvar; x++) {
+		if (~(mask >> x) & 1)
+			continue;
+		printf("c   '%c' = %d\n", (char)('a' + x), var.z[x].v);
+	}
+	printf("c\n"
+	       "c\n");
+
+	do_cnf_header();
+
+	generate_input_parse(var, inputexpr).equal_to_const(false);
+
+	/* ground unused variables */
+	for (size_t x = 0; x != maxvar; x++) {
+		if ((mask >> x) & 1)
+			continue;
+		var.z[x].equal_to_const(false);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
-	fprintf(stderr, "	-M     # output solution as a max sat\n");
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
 	fprintf(stderr, "	-r     # rounded\n");
+	fprintf(stderr, "	-i <X> # Input expression, set equal to zero\n");
+	fprintf(stderr, "	-i <(a ^ b) & (c | d)> # Input expression example\n");
 	fprintf(stderr, "	-f 1   # Generate linear adder\n");
 	fprintf(stderr, "	-f 2   # Generate 2-adic multiplier\n");
 	fprintf(stderr, "	-f 3   # Generate linear multiplier (v1)\n");
@@ -1047,17 +1244,23 @@ usage(void)
 	fprintf(stderr, "	-f 5   # Generate linear zero mod\n");
 	fprintf(stderr, "	-f 6 -v <X> # Generate linear multiplier with variable limit\n");
 	fprintf(stderr, "	-f 7   # Generate linear multiplier (v2)\n");
+	fprintf(stderr, "	-f 8   # Generate AND circuit\n");
+	fprintf(stderr, "	-f 9   # Generate OR circuit\n");
+	fprintf(stderr, "	-f 10  # Generate XOR circuit\n");
 	exit(EX_USAGE);
 }
 
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:m:MV";
+	const char *const optstring = "ghf:cb:rv:m:Vi:";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
 		switch (ch) {
+		case 'i':
+			inputexpr = optarg;
+			break;
 		case 'f':
 			function = atoi(optarg);
 			break;
@@ -1071,9 +1274,6 @@ main(int argc, char **argv)
 		case 'v':
 			cvalue = strtoull(optarg, NULL, 0);
 			cmask = -1;
-			break;
-		case 'M':
-			maxsat = 1;
 			break;
 		case 'm':
 			cmask = strtoull(optarg, NULL, 0);
@@ -1093,10 +1293,13 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (maxvar == 0 || function == 0)
+	if (maxvar == 0 || (function == 0 && inputexpr == NULL))
 		usage();
 
 	switch (function) {
+	case 0:
+		generate_input_cnf();
+		break;
 	case 1:
 		generate_adder_cnf();
 		break;
@@ -1119,6 +1322,15 @@ main(int argc, char **argv)
 		break;
 	case 7:
 		generate_mul_linear_v2_cnf();
+		break;
+	case 8:
+		generate_and_cnf();
+		break;
+	case 9:
+		generate_or_cnf();
+		break;
+	case 10:
+		generate_xor_cnf();
 		break;
 	default:
 		usage();
