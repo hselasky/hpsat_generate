@@ -1243,6 +1243,55 @@ top:
 }
 
 static void
+generate_div_linear_v1_cnf(void)
+{
+top:
+	printf("c The following CNF computes a divisor\n"
+	       "c having %zd bits for each variable and\n"
+	       "c having %zd bits for the result.\n"
+	       "c The starting point for the division is (0x%08llx, 0x%08llx)\n",
+	       maxvar / 2, maxvar, cmask, cvalue);
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+	var_t e;
+
+	f.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	a.alloc();
+
+	for (size_t z = 0; z != maxvar; z++)
+		printf("c Solution in %d / %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
+
+	do_cnf_header();
+
+	b.z[0].equal_to_const(1);
+
+	if (greater)
+		(f > a).equal_to_const(false);
+
+	for (size_t z = 0; z != maxvar; z++) {
+		if ((cmask >> z) & 1)
+			a.z[z].equal_to_const((cvalue >> z) & 1);
+	}
+
+	for (size_t z = 0; z != (maxvar / 2); z++) {
+		variable_t bit = a.z[z];
+		f.z[z].equal_to_var(bit);
+		a -= (b << z) & bit;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		a.z[z].equal_to_const(false);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
@@ -1263,6 +1312,7 @@ usage(void)
 	fprintf(stderr, "	-f 8   # Generate AND circuit\n");
 	fprintf(stderr, "	-f 9   # Generate OR circuit\n");
 	fprintf(stderr, "	-f 10  # Generate XOR circuit\n");
+	fprintf(stderr, "	-f 11  # Generate linear divisor\n");
 	exit(EX_USAGE);
 }
 
@@ -1347,6 +1397,9 @@ main(int argc, char **argv)
 		break;
 	case 10:
 		generate_xor_cnf();
+		break;
+	case 11:
+		generate_div_linear_v1_cnf();
 		break;
 	default:
 		usage();
