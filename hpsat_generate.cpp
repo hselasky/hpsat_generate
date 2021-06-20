@@ -1427,8 +1427,8 @@ usage(void)
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
 	fprintf(stderr, "	-r     # rounded\n");
-	fprintf(stderr, "	-i <X> # Input expression, set equal to zero\n");
-	fprintf(stderr, "	-i <(a ^ b) & (c | d)> # Input expression example\n");
+	fprintf(stderr, "	-i <X> # Input binary expression, which must be equal to zero\n");
+	fprintf(stderr, "	-i <(a ^ b) & (c | d)> # Binary expression example\n");
 	fprintf(stderr, "	-f 1   # Generate linear adder\n");
 	fprintf(stderr, "	-f 2   # Generate 2-adic multiplier\n");
 	fprintf(stderr, "	-f 3   # Generate linear multiplier (v1)\n");
