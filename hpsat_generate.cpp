@@ -239,6 +239,22 @@ public:
 		return (*this);
 	};
 
+	var_t operator -(const var_t &other) const {
+		variable_t carry = -zerovar;
+		var_t r;
+
+		for (size_t x = 0; x != maxvar; x++) {
+			r.z[x] = z[x] ^ ~other.z[x] ^ carry;
+			carry = (z[x] & carry) ^ (~other.z[x] & carry) ^ (z[x] & ~other.z[x]);
+		}
+		return (r);
+	};
+
+	var_t &operator -=(const var_t &other) {
+		*this = *this - other;
+		return (*this);
+	};
+
 	variable_t operator >(const var_t &other) {
 		variable_t y;
 		variable_t t;
