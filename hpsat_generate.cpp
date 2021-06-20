@@ -179,6 +179,11 @@ public:
 		return (c);
 	};
 
+	var_t &operator ^=(const var_t &other) {
+		*this = *this ^ other;
+		return (*this);
+	};
+
 	var_t operator ^(const variable_t &other) const {
 		var_t c;
 		for (size_t x = 0; x != maxvar; x++)
@@ -193,6 +198,11 @@ public:
 		return (c);
 	};
 
+	var_t &operator &=(const var_t &other) {
+		*this = *this & other;
+		return (*this);
+	};
+
 	var_t operator &(const variable_t &other) const {
 		var_t c;
 		for (size_t x = 0; x != maxvar; x++)
@@ -205,6 +215,11 @@ public:
 		for (size_t x = 0; x != maxvar; x++)
 			c.z[x] = z[x] | other.z[x];
 		return (c);
+	};
+
+	var_t &operator |=(const var_t &other) {
+		*this = *this | other;
+		return (*this);
 	};
 
 	var_t operator |(const variable_t &other) const {
@@ -1389,11 +1404,11 @@ top:
 
 	for (size_t z = 1; z != maxvar; z++) {
 		bit = a.z[z];
-		a = a ^ ((a << z) & bit);
-		e = e ^ ((e << z) & bit);
+		a ^= (a << z) & bit;
+		e ^= (e << z) & bit;
 		bit = b.z[z];
-		b = b ^ ((b << z) & bit);
-		e = e ^ ((e << z) & bit);
+		b ^= (b << z) & bit;
+		e ^= (e << z) & bit;
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
