@@ -45,7 +45,7 @@ static size_t maxvar;
 static int zerovar;
 static int runs;
 static int function;
-static unsigned long long cmask;
+static int cmask;
 static unsigned long long cvalue;
 static int greater;
 static int rounded;
@@ -760,9 +760,9 @@ top:
 
 	e.equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	if (greater) {
@@ -804,9 +804,9 @@ top:
 
 	e.equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	if (runs++ == 0)
@@ -843,9 +843,9 @@ top:
 
 	e.equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	if (runs++ == 0)
@@ -882,9 +882,9 @@ top:
 
 	e.equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	if (runs++ == 0)
@@ -916,7 +916,7 @@ top:
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	for (size_t z = 0; z != maxvar / 2; z++) {
-		g.z[z] = ((cvalue_sqrt >> z) & 1) ? -zerovar : zerovar;
+		g.z[z] = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
 		h.z[z] = (z == 0) ? -zerovar : zerovar;
 	}
 
@@ -931,7 +931,7 @@ top:
 	e.equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++)
-		f.z[z].equal_to_const((cvalue >> z) & 1);
+		f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -973,9 +973,9 @@ top:
 
 	e.equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	if (runs++ == 0)
@@ -1002,12 +1002,11 @@ top:
 
 	do_cnf_header();
 
-	if (cmask & cvalue & 1)
-		a.z[0].equal_to_const(true);
-
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		if ((cvalue & 1) != 0)
+			a.z[0].equal_to_const(true);
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	do_zero_mod_linear(f, a);
@@ -1035,8 +1034,8 @@ top:
 
 	c = (a & b);
 
-	if (cmask & 1)
-		c.equal_to_const(cvalue & 1);
+	if (cmask)
+		c.equal_to_const((cvalue & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1061,8 +1060,8 @@ top:
 
 	c = (a | b);
 
-	if (cmask & 1)
-		c.equal_to_const(cvalue & 1);
+	if (cmask)
+		c.equal_to_const((cvalue & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1087,8 +1086,8 @@ top:
 
 	c = (a ^ b);
 
-	if (cmask & 1)
-		c.equal_to_const(cvalue & 1);
+	if (cmask)
+		c.equal_to_const((cvalue & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1274,9 +1273,9 @@ top:
 	if (greater)
 		(f > a).equal_to_const(false);
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			a.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			a.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	for (size_t z = 0; z != (maxvar / 2); z++) {
@@ -1326,9 +1325,9 @@ top:
 	f.z[0].equal_to_const(true);
 	e.z[0] = -zerovar;
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	for (size_t z = 1; z != maxvar; z++) {
@@ -1381,9 +1380,9 @@ top:
 	f.z[0].equal_to_const(true);
 	e.z[0] = -zerovar;
 
-	for (size_t z = 0; z != maxvar; z++) {
-		if ((cmask >> z) & 1)
-			f.z[z].equal_to_const((cvalue >> z) & 1);
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
 	}
 
 	for (size_t z = 1; z != maxvar; z++) {
@@ -1409,7 +1408,6 @@ usage(void)
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
-	fprintf(stderr, "	-m <X> # specify resulting value mask (default is -1)\n");
 	fprintf(stderr, "	-r     # rounded\n");
 	fprintf(stderr, "	-i <X> # Input binary expression, which must be equal to zero\n");
 	fprintf(stderr, "	-i <(a ^ b) & (c | d)> # Binary expression example\n");
@@ -1432,7 +1430,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:m:Vi:";
+	const char *const optstring = "ghf:cb:rv:Vi:";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
@@ -1452,10 +1450,7 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			cvalue = strtoull(optarg, NULL, 0);
-			cmask = -1;
-			break;
-		case 'm':
-			cmask = strtoull(optarg, NULL, 0);
+			cmask = 1;
 			break;
 		case 'g':
 			greater = 1;
