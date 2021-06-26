@@ -33,6 +33,8 @@
 
 #include <assert.h>
 
+#include <iostream>
+
 #define	MAXVAR 64
 
 static int varnum;
@@ -50,9 +52,9 @@ static int rounded;
 static int varlimit;
 static const char *inputexpr;
 
-#define	printf(...) do { \
+#define	outcnf(...) do { \
     if (runs) \
-	printf(__VA_ARGS__); \
+	std::cout << __VA_ARGS__; \
 } while (0)
 
 static int
@@ -107,9 +109,9 @@ static void
 do_cnf_header(void)
 {
 	if (varlimit)
-		printf("p cnf %d %d %d\n", old_varnum - 1, old_nexpr, varnum - 1);
+		outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << " " << varnum - 1 << "\n");
 	else
-		printf("p cnf %d %d\n", old_varnum - 1, old_nexpr);
+		outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << "\n");
 
 	(variable_t(zerovar)).equal_to_const(false);
 }
@@ -389,10 +391,10 @@ out_triplet(int a, int b, int c)
 	for (t = a = 0; a != 3; a++) {
 		if (array[a] != t) {
 			t = array[a];
-			printf("%d ", t);
+			outcnf(t << " ");
 		}
 	}
-	printf("0\n");
+	outcnf("0\n");
 	nexpr++;
 }
 
@@ -421,10 +423,10 @@ out_dual(int a, int b)
 	for (t = a = 0; a != 2; a++) {
 		if (array[a] != t) {
 			t = array[a];
-			printf("%d ", t);
+			outcnf(t << " ");
 		}
 	}
-	printf("0\n");
+	outcnf("0\n");
 	nexpr++;
 }
 
@@ -433,7 +435,7 @@ variable_t :: equal_to_const(bool value) const
 {
 	assert(v != 0);
 
-	printf("%d 0\n", value ? v : -v);
+	outcnf((value ? v : -v) << " 0\n");
 	nexpr++;
 }
 
@@ -442,8 +444,8 @@ variable_t :: equal_to_var(const variable_t &other) const
 {
 	assert(v != 0 && other.v != 0);
 
-	printf("%d %d 0\n", -v, other.v);
-	printf("%d %d 0\n", v, -other.v);
+	outcnf(-v << " " << other.v << " 0\n");
+	outcnf(v << " " << -other.v << " 0\n");
 	nexpr += 2;
 }
 
@@ -735,9 +737,8 @@ static void
 generate_adder_cnf(void)
 {
 top:
-	printf("c The following CNF computes the addition of two %zd bit\n"
-	       "c variables into a %zd bit sum: ((a + b) & 0x%08llx) = 0x%08llx\n",
-	       maxvar, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the addition of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit sum: (a + b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -751,7 +752,7 @@ top:
 	f.alloc();
 
 	for (size_t z = 0; z != maxvar; z++)
-		printf("c Solution in %d + %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
+		outcnf("c Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -777,9 +778,8 @@ static void
 generate_mul_2adic_cnf(void)
 {
 top:
-	printf("c The following CNF computes a 2-adic multiplier\n"
-	       "c having %zd bits for each variable and (result & 0x%08llx) = 0x%08llx\n",
-	       maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the 2-adic multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -793,7 +793,7 @@ top:
 	f.alloc();
 
 	for (size_t z = 0; z != maxvar; z++)
-		printf("c Solution in %d = %d x %d\n", f.z[z].v, a.z[z].v, b.z[z].v);
+		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -817,10 +817,8 @@ static void
 generate_mul_linear_v1_cnf(void)
 {
 top:
-	printf("c The following CNF computes a multiplier\n"
-	       "c having %zd bits for each variable and\n"
-	       "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
-	       maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -833,8 +831,8 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
-	for (size_t z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -858,10 +856,8 @@ static void
 generate_mul_linear_v2_cnf(void)
 {
 top:
-	printf("c The following CNF computes a multiplier\n"
-	       "c having %zd bits for each variable and\n"
-	       "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
-	       maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -874,8 +870,8 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
-	for (size_t z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -900,11 +896,8 @@ generate_mul_linear_limit_cnf(void)
 {
 	unsigned long long cvalue_sqrt = sqrt_64(cvalue);
 top:
-	printf(
-	    "c The following CNF computes a multiplier\n"
-	    "c having %zd bits for each variable and\n"
-	    "c having %zd bits for (result & 0x%08llx) = 0x%08llx\n",
-	    maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -919,9 +912,10 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
-	for (size_t z = 0; z != maxvar / 2; z++) {
-		printf("c Solution in %d + %d = %d, %d\n", a.z[z].v, b.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
+	for (size_t z = 0; z != maxvar / 2; z++) {
 		g.z[z] = ((cvalue_sqrt >> z) & 1) ? -zerovar : zerovar;
 		h.z[z] = (z == 0) ? -zerovar : zerovar;
 	}
@@ -947,10 +941,8 @@ static void
 generate_sqr_linear_cnf(void)
 {
 top:
-	printf("c The following CNF computes a linear square\n"
-	       "c having %zd bits for each variable and\n"
-	       "c %zd bits for the result, (result & 0x%08llx) = 0x%08llx\n",
-	       maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
+	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -961,8 +953,8 @@ top:
 	a.alloc(maxvar / 2);
 	f.alloc();
 
-	for (size_t z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d = %d, %d\n", a.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -994,10 +986,8 @@ static void
 generate_mod_linear_cnf(void)
 {
 top:
-	printf("c The following CNF computes a linear modulus\n"
-	       "c having %zd bits for each variable and\n"
-	       "c %zd bits for the result, (result & 0x%08llx) = 0x%08llx\n",
-	       maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes the linear modulus of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a % b) = " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -1007,8 +997,8 @@ top:
 	a.alloc(maxvar / 2);
 	f.alloc();
 
-	for (size_t z = 0; z != maxvar / 2; z++)
-		printf("c Solution in %d = %d, %d\n", a.z[z].v, f.z[z].v, f.z[z + maxvar / 2].v);
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << f.z[z].v << " % " << a.z[z].v << " = 0\n");
 
 	do_cnf_header();
 
@@ -1030,9 +1020,8 @@ static void
 generate_and_cnf(void)
 {
 top:
-	printf(
-	    "c The following CNF implements an AND circuit\n"
-	    "c having two inputs and one output\n");
+	outcnf("c The following CNF implements an AND circuit\n"
+	       "c having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1040,7 +1029,7 @@ top:
 	variable_t b = new_variable();
 	variable_t c;
 
-	printf("c Solution in %d & %d = %d\n", a.v, b.v, c.v);
+	outcnf("c Solution in " << a.v << " & " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -1057,9 +1046,8 @@ static void
 generate_or_cnf(void)
 {
 top:
-	printf(
-	    "c The following CNF implements an OR circuit\n"
-	    "c having two inputs and one output\n");
+	outcnf("c The following CNF implements an OR circuit\n"
+	       "c having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1067,7 +1055,7 @@ top:
 	variable_t b = new_variable();
 	variable_t c;
 
-	printf("c Solution in %d | %d = %d\n", a.v, b.v, c.v);
+	outcnf("c Solution in " << a.v << " | " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -1084,9 +1072,8 @@ static void
 generate_xor_cnf(void)
 {
 top:
-	printf(
-	    "c The following CNF implements an XOR circuit\n"
-	    "c having two inputs and one output\n");
+	outcnf("c The following CNF implements an XOR circuit\n"
+	       "c having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1094,7 +1081,7 @@ top:
 	variable_t b = new_variable();
 	variable_t c;
 
-	printf("c Solution in %d ^ %d = %d\n", a.v, b.v, c.v);
+	outcnf("c Solution in " << a.v << " ^ " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -1222,24 +1209,24 @@ generate_input_cnf(void)
 	maxvar = generate_input_maxvar(inputexpr, &mask);
 
 top:
-	printf("c This CNF-file implements the following expression\n"
+	outcnf("c This CNF-file implements the following expression\n"
 	       "c\n"
-	       "c   '%s'\n"
-	       "c\n", inputexpr);
+	       "c   '" << inputexpr << "'\n"
+	       "c\n");
 
 	do_cnf_reset();
 
 	var_t var;
 	var.alloc();
 
-	printf("c Variable mapping used:\n"
+	outcnf("c Variable mapping used:\n"
 	       "c\n");
 	for (size_t x = 0; x != maxvar; x++) {
 		if (~(mask >> x) & 1)
 			continue;
-		printf("c   '%c' = %d\n", (char)('a' + x), var.z[x].v);
+		outcnf("c   '" << (char)('a' + x) << "' = " << var.z[x].v << "\n");
 	}
-	printf("c\n"
+	outcnf("c\n"
 	       "c\n");
 
 	do_cnf_header();
@@ -1261,11 +1248,10 @@ static void
 generate_div_linear_v1_cnf(void)
 {
 top:
-	printf("c The following CNF computes a divisor\n"
-	       "c having %zd bits for each variable and\n"
-	       "c having %zd bits for the result.\n"
-	       "c The starting point for the division is (0x%08llx, 0x%08llx)\n",
-	       maxvar / 2, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes a divisor\n"
+	       "c having " << (maxvar / 2) << " bits for each variable and\n"
+	       "c having " << maxvar << " bits for the result.\n"
+	       "c The starting point for the division is " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -1279,7 +1265,7 @@ top:
 	a.alloc();
 
 	for (size_t z = 0; z != maxvar; z++)
-		printf("c Solution in %d / %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
+		outcnf("c Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1310,11 +1296,10 @@ static void
 generate_inv_multiplier_v1_cnf(void)
 {
 top:
-	printf("c The following CNF computes an inverse multiplier\n"
-	       "c having %zd bits for each variable and\n"
-	       "c having %zd bits for the result.\n"
-	       "c The starting point for the division is (0x%08llx, 0x%08llx)\n",
-	       maxvar, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes an inverse multiplier\n"
+	       "c having " << maxvar << " bits for each variable and\n"
+	       "c having " << maxvar << " bits for the result.\n"
+	       "c The starting point for the division is " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -1329,7 +1314,7 @@ top:
 	f.alloc();
 
 	for (size_t z = 0; z != maxvar; z++)
-		printf("c Solution in %d / %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
+		outcnf("c Solution in 1/(" << a.z[z].v << " / " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1366,11 +1351,10 @@ static void
 generate_inv_2adic_multiplier_v1_cnf(void)
 {
 top:
-	printf("c The following CNF computes an inverse multiplier\n"
-	       "c having %zd bits for each variable and\n"
-	       "c having %zd bits for the result.\n"
-	       "c The starting point for the division is (0x%08llx, 0x%08llx)\n",
-	       maxvar, maxvar, cmask, cvalue);
+	outcnf("c The following CNF computes an inverse multiplier\n"
+	       "c having " << maxvar << " bits for each variable and\n"
+	       "c having " << maxvar << " bits for the result.\n"
+	       "c The starting point for the division is " << cvalue << "\n");
 
 	do_cnf_reset();
 
@@ -1385,7 +1369,7 @@ top:
 	f.alloc();
 
 	for (size_t z = 0; z != maxvar; z++)
-		printf("c Solution in %d / %d = %d\n", a.z[z].v, b.z[z].v, f.z[z].v);
+		outcnf("c Solution in 1/(" << a.z[z].v << " x " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1421,7 +1405,7 @@ top:
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 0..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
+	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
