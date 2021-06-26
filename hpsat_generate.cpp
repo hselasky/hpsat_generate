@@ -943,6 +943,47 @@ top:
 }
 
 static void
+generate_mul_linear_by_squaring_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * a) - (b * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+	var_t e;
+
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	(a > b).equal_to_const(true);
+
+	if (greater) {
+		((a + b) <= f).equal_to_const(true);
+		((a - b) <= f).equal_to_const(true);
+	}
+
+	(a * a - b * b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 generate_sqr_linear_cnf(void)
 {
 top:
@@ -1430,6 +1471,7 @@ usage(void)
 	fprintf(stderr, "	-f 12  # Generate inverse linear multiplier\n");
 	fprintf(stderr, "	-f 13  # Generate inverse 2-adic multiplier\n");
 	fprintf(stderr, "	-f 14  # Generate linear multiplier (v3)\n");
+	fprintf(stderr, "	-f 15  # Generate linear multiplier by squaring\n");
 	exit(EX_USAGE);
 }
 
@@ -1531,6 +1573,9 @@ main(int argc, char **argv)
 		break;
 	case 14:
 		generate_mul_linear_v3_cnf();
+		break;
+	case 15:
+		generate_mul_linear_by_squaring_cnf();
 		break;
 	default:
 		usage();
