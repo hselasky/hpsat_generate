@@ -315,62 +315,15 @@ public:
 	};
 
 	variable_t operator >(const var_t &other) {
-		variable_t y;
-		variable_t t;
-		variable_t n = -zerovar;
-		variable_t r = zerovar;
-		size_t s = maxvar;
-
-		while (s--) {
-			const variable_t &va = z[s];
-			const variable_t &vb = other.z[s];
-
-			y = va ^ vb;
-			t = y & va & n;
-			r = r | t;
-			n = n & ~y;
-		}
-		return (r);
+		return (other - *this).z[maxvar - 1];
 	};
 
 	variable_t operator >=(const var_t &other) {
-		variable_t y;
-		variable_t t;
-		variable_t n = -zerovar;
-		variable_t r = zerovar;
-		size_t s = maxvar;
-
-		while (s--) {
-			const variable_t &va = z[s];
-			const variable_t &vb = other.z[s];
-
-			y = va ^ vb;
-			t = y & va & n;
-			r = r | t;
-			n = n & ~y;
-		}
-		r = r | n;
-		return (r);
+		return ~(*this - other).z[maxvar - 1];
 	};
 
 	variable_t operator <(const var_t &other) {
-		variable_t y;
-		variable_t t;
-		variable_t n = -zerovar;
-		variable_t r = zerovar;
-		size_t s = maxvar;
-
-		while (s--) {
-			const variable_t &va = z[s];
-			const variable_t &vb = other.z[s];
-
-			y = va ^ vb;
-			t = y & va & n;
-			r = r | t;
-			n = n & ~y;
-		}
-		r = r | n;
-		return (~r);
+		return (*this - other).z[maxvar - 1];
 	};
 };
 
