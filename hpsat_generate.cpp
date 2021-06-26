@@ -286,6 +286,34 @@ public:
 		return (*this);
 	};
 
+	var_t operator *(const var_t &other) const {
+		size_t max = maxvar / 2;
+		size_t x;
+		size_t y;
+		var_t *pr = new var_t [max + 1];
+		var_t r;
+
+		for (x = 0; x != max; x++)
+			pr[x] = (other & z[x]) << x;
+
+		while (max > 1) {
+			for (x = y = 0; (y + 1) < max; y += 2)
+				pr[x++] = pr[y] + pr[y + 1];
+			if (y < max)
+				pr[x++] = pr[y];
+			max = x;
+		}
+
+		r = pr[0];
+		delete [] pr;
+		return (r);
+	};
+
+	var_t &operator *=(const var_t &other) {
+		*this = *this * other;
+		return (*this);
+	};
+
 	variable_t operator >(const var_t &other) {
 		variable_t y;
 		variable_t t;
@@ -874,6 +902,42 @@ top:
 }
 
 static void
+generate_mul_linear_v3_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	if (greater)
+		(a > b).equal_to_const(false);
+
+	(a * b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 generate_mul_linear_limit_cnf(void)
 {
 	mpz_class cvalue_sqrt = sqrt(cvalue);
@@ -1406,6 +1470,7 @@ usage(void)
 	fprintf(stderr, "	-f 11  # Generate linear divisor\n");
 	fprintf(stderr, "	-f 12  # Generate inverse linear multiplier\n");
 	fprintf(stderr, "	-f 13  # Generate inverse 2-adic multiplier\n");
+	fprintf(stderr, "	-f 14  # Generate linear multiplier (v3)\n");
 	exit(EX_USAGE);
 }
 
@@ -1504,6 +1569,9 @@ main(int argc, char **argv)
 		break;
 	case 13:
 		generate_inv_2adic_multiplier_v1_cnf();
+		break;
+	case 14:
+		generate_mul_linear_v3_cnf();
 		break;
 	default:
 		usage();
