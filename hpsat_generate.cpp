@@ -243,13 +243,19 @@ public:
 	};
 
 	var_t operator +(const var_t &other) const {
-		variable_t carry = zerovar;
 		var_t r;
+		var_t d;
+		var_t e;
 
-		for (size_t x = 0; x != maxvar; x++) {
-			r.z[x] = z[x] ^ other.z[x] ^ carry;
-			carry = (z[x] & carry) ^ (other.z[x] & carry) ^ (z[x] & other.z[x]);
-		}
+		r.alloc();
+		d.alloc();
+		e.alloc();
+
+		/* Build equation for addition after HP Selasky */
+		(*this ^ other ^ r ^ d ^ e ^ ((*this & other) << 1)).equal_to_const(false);
+		(*this ^ other ^ r ^ e ^ ((*this & ~r) << 1)).equal_to_const(false);
+		(*this ^ other ^ r ^ d ^ ((other & ~r) << 1)).equal_to_const(false);
+
 		return (r);
 	};
 
@@ -259,14 +265,20 @@ public:
 	};
 
 	var_t operator -(const var_t &other) const {
-		variable_t carry = -zerovar;
-		var_t r;
+		var_t a;
+		var_t d;
+		var_t e;
 
-		for (size_t x = 0; x != maxvar; x++) {
-			r.z[x] = z[x] ^ ~other.z[x] ^ carry;
-			carry = (z[x] & carry) ^ (~other.z[x] & carry) ^ (z[x] & ~other.z[x]);
-		}
-		return (r);
+		a.alloc();
+		d.alloc();
+		e.alloc();
+
+		/* Build equation for subtraction after HP Selasky */
+		(a ^ other ^ *this ^ d ^ e ^ ((a & other) << 1)).equal_to_const(false);
+		(a ^ other ^ *this ^ e ^ ((a & ~*this) << 1)).equal_to_const(false);
+		(a ^ other ^ *this ^ d ^ ((other & ~*this) << 1)).equal_to_const(false);
+
+		return (a);
 	};
 
 	var_t &operator -=(const var_t &other) {
