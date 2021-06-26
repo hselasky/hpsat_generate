@@ -1,6 +1,9 @@
 # hpsat_generate
 3-SAT CNF file generator for testing SAT solvers
 
+## Dependencies
+- LibGMP
+
 ## Example 1: Solve multiplication of two 4-bit variables which is equal to 15
 hpsat_generate -f 6 -b 8 -v 15 | picosat
 

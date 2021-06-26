@@ -35,7 +35,9 @@
 
 #include <iostream>
 
-#define	MAXVAR 64
+#include <gmpxx.h>
+
+#define	MAXVAR 65536
 
 static int varnum;
 static int nexpr;
@@ -46,7 +48,7 @@ static int zerovar;
 static int runs;
 static int function;
 static int cmask;
-static unsigned long long cvalue;
+static mpz_class cvalue;
 static int greater;
 static int rounded;
 static int varlimit;
@@ -331,38 +333,6 @@ public:
 		return (~r);
 	};
 };
-
-static bool
-sub_if_gte_64(uint64_t *pa, uint64_t *ps, uint64_t value)
-{
-	uint64_t x;
-	uint64_t y;
-
-	x = *pa ^ *ps ^ value;
-	y = 2 * ((~*pa & *ps) | (~(*pa & ~*ps) & value));
-
-	if (x >= y) {
-		*pa = x;
-		*ps = y;
-		return (1);
-	}
-	return (0);
-}
-
-static uint32_t
-sqrt_64(uint64_t z)
-{
-	uint64_t y = 0;
-	uint64_t zc = 0;
-	int8_t k;
-
-	for (k = 62; k != -2; k -= 2) {
-		if (sub_if_gte_64(&z, &zc, (y | 1) << k))
-			y |= 2;
-		y *= 2;
-	}
-	return (y / 4);
-}
 
 static void
 out_triplet(int a, int b, int c)
@@ -894,7 +864,7 @@ top:
 static void
 generate_mul_linear_limit_cnf(void)
 {
-	unsigned long long cvalue_sqrt = sqrt_64(cvalue);
+	mpz_class cvalue_sqrt = sqrt(cvalue);
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
 	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
@@ -1449,7 +1419,15 @@ main(int argc, char **argv)
 				maxvar = 1;
 			break;
 		case 'v':
-			cvalue = strtoull(optarg, NULL, 0);
+			cvalue = 0;
+			for (const char *ptr = optarg; *ptr != 0; ptr++) {
+				if (*ptr >= '0' && *ptr <= '9') {
+					cvalue *= 10;
+					cvalue += *ptr - '0';
+				} else {
+					usage();
+				}
+			}
 			cmask = 1;
 			break;
 		case 'g':
