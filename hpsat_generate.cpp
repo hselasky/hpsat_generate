@@ -251,10 +251,12 @@ public:
 		d.alloc();
 		e.alloc();
 
-		/* Build equation for addition after HP Selasky */
-		(*this ^ other ^ r ^ d ^ e ^ ((*this & other) << 1)).equal_to_const(false);
-		(*this ^ other ^ r ^ e ^ ((*this & ~r) << 1)).equal_to_const(false);
-		(*this ^ other ^ r ^ d ^ ((other & ~r) << 1)).equal_to_const(false);
+		var_t common = *this ^ other ^ r;
+
+		/* Build equation for addition after HP Selasky 2021 */
+		(common ^ d ^ e ^ ((*this & other) << 1)).equal_to_const(false);
+		(common ^ e ^ ((*this & ~r) << 1)).equal_to_const(false);
+		(common ^ d ^ ((other & ~r) << 1)).equal_to_const(false);
 
 		return (r);
 	};
@@ -273,10 +275,12 @@ public:
 		d.alloc();
 		e.alloc();
 
-		/* Build equation for subtraction after HP Selasky */
-		(a ^ other ^ *this ^ d ^ e ^ ((a & other) << 1)).equal_to_const(false);
-		(a ^ other ^ *this ^ e ^ ((a & ~*this) << 1)).equal_to_const(false);
-		(a ^ other ^ *this ^ d ^ ((other & ~*this) << 1)).equal_to_const(false);
+		var_t common = a ^ other ^ *this;
+
+		/* Build equation for subtraction after HP Selasky 2021 */
+		(common ^ d ^ e ^ ((a & other) << 1)).equal_to_const(false);
+		(common ^ e ^ ((a & ~*this) << 1)).equal_to_const(false);
+		(common ^ d ^ ((other & ~*this) << 1)).equal_to_const(false);
 
 		return (a);
 	};
