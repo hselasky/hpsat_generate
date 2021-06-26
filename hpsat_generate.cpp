@@ -329,6 +329,10 @@ public:
 	variable_t operator <(const var_t &other) {
 		return (*this - other).z[maxvar - 1];
 	};
+
+	variable_t operator <=(const var_t &other) {
+		return ~(other - *this).z[maxvar - 1];
+	};
 };
 
 static void
@@ -925,13 +929,11 @@ top:
 
 	do_cnf_header();
 
-	(a > g).equal_to_const(false);
-	(b >= g).equal_to_const(true);
 	(a > h).equal_to_const(true);
+	(a <= g).equal_to_const(true);
+	(b >= g).equal_to_const(true);
 
-	e = do_mul_linear_v1(a, b);
-
-	e.equal_to_var(f);
+	(a * b).equal_to_var(f);
 
 	for (size_t z = 0; z != maxvar; z++)
 		f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
