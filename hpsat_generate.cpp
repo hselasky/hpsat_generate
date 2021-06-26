@@ -242,6 +242,15 @@ public:
 		return (c);
 	};
 
+	var_t operator >>(size_t shift) const {
+		var_t c;
+		if (shift < maxvar) {
+			for (size_t x = shift; x != maxvar; x++)
+				c.z[x - shift] = z[x];
+		}
+		return (c);
+	};
+
 	var_t operator +(const var_t &other) const {
 		var_t r;
 		var_t d;
@@ -913,7 +922,6 @@ top:
 	var_t f;
 	var_t e;
 	var_t g;
-	var_t h;
 
 	a.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
@@ -922,16 +930,14 @@ top:
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
-	for (size_t z = 0; z != maxvar / 2; z++) {
+	for (size_t z = 0; z != maxvar; z++)
 		g.z[z] = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
-		h.z[z] = (z == 0) ? -zerovar : zerovar;
-	}
 
 	do_cnf_header();
 
-	(a > h).equal_to_const(true);
 	(a <= g).equal_to_const(true);
 	(b >= g).equal_to_const(true);
+	(b <= (f >> 1)).equal_to_const(true);
 
 	(a * b).equal_to_var(f);
 
