@@ -301,30 +301,33 @@ public:
 	};
 
 	var_t operator *(const var_t &other) const {
-		size_t max = maxvar / 2;
-		size_t x;
-		size_t y;
-		var_t *pr = new var_t [max + 1];
 		var_t r;
-
-		for (x = 0; x != max; x++)
-			pr[x] = (other & z[x]) << x;
-
-		while (max > 1) {
-			for (x = y = 0; (y + 1) < max; y += 2)
-				pr[x++] = pr[y] + pr[y + 1];
-			if (y < max)
-				pr[x++] = pr[y];
-			max = x;
-		}
-
-		r = pr[0];
-		delete [] pr;
+		for (size_t x = 0; x != maxvar; x++)
+			r = r + ((*this & other.z[x]) << x);
 		return (r);
 	};
 
 	var_t &operator *=(const var_t &other) {
 		*this = *this * other;
+		return (*this);
+	};
+
+	var_t operator %(const var_t &other) const {
+		var_t r = *this;
+		for (size_t max = maxvar; max--; ) {
+			if (other.z[max].v != zerovar) {
+				for (size_t x = (maxvar - max); x--; ) {
+					var_t temp = (other << x);
+					r -= (temp & (temp >= r));
+				}
+				break;
+			}
+		}
+		return (r);
+	};
+
+	var_t &operator %=(const var_t &other) {
+		*this = *this % other;
 		return (*this);
 	};
 
