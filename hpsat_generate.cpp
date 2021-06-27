@@ -1038,6 +1038,65 @@ top:
 }
 
 static void
+generate_mul_linear_v4_cnf(void)
+{
+	mpz_class cvalue_sqrt = sqrt(cvalue);
+top:
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+	var_t g;
+	var_t h;
+
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " * 2 = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++) {
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		g.z[z].v = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
+	}
+
+	do_cnf_header();
+
+	if (greater)
+		(a > b).equal_to_const(false);
+
+	(a <= g).equal_to_const(true);
+
+	var_t r;
+
+	for (size_t x = 0; x != maxvar; x++)
+		r = r + ((a ^ b.z[x]) << x);
+
+	(h - r - a - b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 generate_mul_linear_limit_cnf(void)
 {
 	mpz_class cvalue_sqrt = sqrt(cvalue);
@@ -1735,6 +1794,7 @@ usage(void)
 	fprintf(stderr, "	-f 13  # Generate inverse 2-adic multiplier\n");
 	fprintf(stderr, "	-f 14  # Generate linear multiplier (v3)\n");
 	fprintf(stderr, "	-f 15  # Generate linear multiplier by squaring\n");
+	fprintf(stderr, "	-f 16  # Generate linear multiplier (v4)\n");
 	exit(EX_USAGE);
 }
 
@@ -1842,6 +1902,9 @@ main(int argc, char **argv)
 		break;
 	case 15:
 		generate_mul_linear_by_squaring_cnf();
+		break;
+	case 16:
+		generate_mul_linear_v4_cnf();
 		break;
 	default:
 		usage();
