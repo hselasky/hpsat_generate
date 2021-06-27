@@ -53,6 +53,7 @@ static int greater;
 static int rounded;
 static int varlimit;
 static const char *inputexpr;
+static int do_parse;
 
 #define	outcnf(...) do { \
     if (runs) \
@@ -343,6 +344,80 @@ public:
 		return ~(other - *this).z[maxvar - 1];
 	};
 };
+
+static ssize_t
+input_read_value(std::string &line, size_t &offset)
+{
+	bool sign = 0;
+	ssize_t value = 0;
+
+	while (line[offset] != 0) {
+		if (isdigit(line[offset])) {
+			value *= 10;
+			value += line[offset] - '0';
+			offset++;
+		} else if (line[offset] == '-') {
+			sign = 1;
+			offset++;
+		} else {
+			break;
+		}
+	}
+	return (sign ? -value : value);
+}
+
+static void
+input_skip_space(std::string &line, size_t &offset)
+{
+	while (line[offset] == ' ' || line[offset] == '\t')
+		offset++;
+}
+
+static int
+input_variables(mpz_class &v0, ssize_t s0, ssize_t n0,
+		mpz_class &v1, ssize_t s1, ssize_t n1,
+		mpz_class &v2, ssize_t s2, ssize_t n2)
+{
+	std::string line;
+	ssize_t v;
+	size_t offset;
+	mpz_class one = 1;
+	bool sign;
+
+	if (s0 < 0)
+		s0 = -s0;
+	if (s1 < 0)
+		s1 = -s1;
+	if (s2 < 0)
+		s2 = -s2;
+
+	v0 = 0;
+	v1 = 0;
+	v2 = 0;
+
+	while (getline(std::cin, line)) {
+		if (line[0] != 'v')
+			continue;
+
+		offset = 1;
+		while (line[offset] != 0) {
+			input_skip_space(line, offset);
+			v = input_read_value(line, offset);
+			input_skip_space(line, offset);
+			if (v == 0)
+				return (0);
+			if (v > 0) {
+				if (v >= s0 && v < s0 + n0)
+					v0 |= one << (v - s0);
+				if (v >= s1 && v < s1 + n1)
+					v1 |= one << (v - s1);
+				if (v >= s2 && v < s2 + n2)
+					v2 |= one << (v - s2);
+			}
+		}
+	}
+	return (-1);
+}
 
 static void
 out_triplet(int a, int b, int c)
@@ -731,6 +806,17 @@ top:
 	b.alloc();
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " + " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
 
@@ -772,6 +858,17 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " x " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
 
@@ -810,6 +907,17 @@ top:
 	a.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
 	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
@@ -850,6 +958,17 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
@@ -887,6 +1006,17 @@ top:
 	a.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
 	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
@@ -927,6 +1057,17 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
@@ -966,6 +1107,17 @@ top:
 	b.alloc(maxvar / 2);
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << "**2 - " << vb << "**2 = " << vf << "\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
@@ -1004,6 +1156,17 @@ top:
 
 	a.alloc(maxvar / 2);
 	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, 0, 0,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << "sqrt(" << vf << ") = " << va << "\n";
+		}
+		return;
+	}
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
@@ -1049,6 +1212,17 @@ top:
 	a.alloc(maxvar / 2);
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, 0, 0,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << vf << " mod " << va << " = 0\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << f.z[z].v << " % " << a.z[z].v << " = 0\n");
 
@@ -1080,6 +1254,17 @@ top:
 	variable_t b = new_variable();
 	variable_t c;
 
+	if (do_parse) {
+		mpz_class va,vb,vc;
+
+		while (input_variables(va, a.v, 1,
+				       vb, b.v, 1,
+				       vc, 0, 0) == 0) {
+			std::cout << va << " & " << vb << " = 0\n";
+		}
+		return;
+	}
+
 	outcnf("c Solution in " << a.v << " & " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
@@ -1106,6 +1291,17 @@ top:
 	variable_t b = new_variable();
 	variable_t c;
 
+	if (do_parse) {
+		mpz_class va,vb,vc;
+
+		while (input_variables(va, a.v, 1,
+				       vb, b.v, 1,
+				       vc, 0, 0) == 0) {
+			std::cout << va << " | " << vb << " = 0\n";
+		}
+		return;
+	}
+
 	outcnf("c Solution in " << a.v << " | " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
@@ -1131,6 +1327,17 @@ top:
 	variable_t a = new_variable();
 	variable_t b = new_variable();
 	variable_t c;
+
+	if (do_parse) {
+		mpz_class va,vb,vc;
+
+		while (input_variables(va, a.v, 1,
+				       vb, b.v, 1,
+				       vc, 0, 0) == 0) {
+			std::cout << va << " ^ " << vb << " = 0\n";
+		}
+		return;
+	}
 
 	outcnf("c Solution in " << a.v << " ^ " << b.v << " = " << c.v << "\n");
 
@@ -1270,6 +1477,22 @@ top:
 	var_t var;
 	var.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vc;
+
+		while (input_variables(va, var.z[0].v, maxvar,
+				       vb, 0, 0,
+				       vc, 0, 0) == 0) {
+			for (size_t x = 0; x != maxvar; x++) {
+				if (~(mask >> x) & 1)
+					continue;
+				std::cout << (char)('a' + x) << "=" << (((va >> x) & 1) != 0) << " ";
+			}
+			std::cout << "\n";
+		}
+		return;
+	}
+
 	outcnf("c Variable mapping used:\n"
 	       "c\n");
 	for (size_t x = 0; x != maxvar; x++) {
@@ -1314,6 +1537,17 @@ top:
 	f.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
 	a.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar / 2) == 0) {
+			std::cout << va << " / " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
@@ -1363,6 +1597,17 @@ top:
 	a.alloc();
 	b.alloc();
 	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "**-1\n";
+		}
+		return;
+	}
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in 1/(" << a.z[z].v << " / " << b.z[z].v << ") = " << f.z[z].v << "\n");
@@ -1419,6 +1664,17 @@ top:
 	b.alloc();
 	f.alloc();
 
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "**-1\n";
+		}
+		return;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in 1/(" << a.z[z].v << " x " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
@@ -1458,6 +1714,7 @@ usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
+	fprintf(stderr, "	-p     # pretty print result from solver via standard input\n");
 	fprintf(stderr, "	-g     # b >= a\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-r     # rounded\n");
@@ -1484,11 +1741,14 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:Vi:";
+	const char *const optstring = "ghf:cb:rv:Vi:p";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
 		switch (ch) {
+		case 'p':
+			do_parse = 1;
+			break;
 		case 'i':
 			inputexpr = optarg;
 			break;
