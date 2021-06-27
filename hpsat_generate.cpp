@@ -1580,6 +1580,7 @@ top:
 static void
 generate_div_linear_v1_cnf(void)
 {
+	mpz_class cvalue_sqrt = sqrt(cvalue);
 top:
 	outcnf("c The following CNF computes a divisor\n"
 	       "c having " << (maxvar / 2) << " bits for each variable and\n"
@@ -1590,8 +1591,9 @@ top:
 
 	var_t a;
 	var_t b;
-	var_t f;
 	var_t e;
+	var_t f;
+	var_t g;
 
 	f.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
@@ -1611,12 +1613,17 @@ top:
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
 
+	for (size_t z = 0; z != maxvar; z++)
+		g.z[z].v = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
+
 	do_cnf_header();
 
 	b.z[0].equal_to_const(1);
 
-	if (greater)
+	if (greater) {
+		(b <= g).equal_to_const(true);
 		(f > a).equal_to_const(false);
+	}
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
