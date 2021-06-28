@@ -149,6 +149,8 @@ public:
 	void alloc(size_t max = maxvar) {
 		for (size_t x = 0; x != max; x++)
 			z[x].v = new_variable();
+		for (size_t x = max; x != maxvar; x++)
+			z[x].v = zerovar;
 	};
 
 	void from_const(uint64_t var) {
