@@ -723,32 +723,6 @@ do_mul_2adic(const var_t &a, const var_t &b)
 }
 
 static var_t
-do_mul_linear_v1(const var_t &a, const var_t &b)
-{
-	variable_t z[maxvar / 2][maxvar / 2];
-	var_t c;
-	var_t d;
-
-	for (size_t x = 0; x != maxvar / 2; x++) {
-		for (size_t y = 0; y != maxvar / 2; y++) {
-			z[x][y] = a.z[x] & b.z[y];
-		}
-	}
-
-	for (size_t x = 0; x != maxvar / 2; x++) {
-		for (size_t y = 0; y != maxvar; y++)
-			d.z[y] = zerovar;
-		for (size_t y = 0; y != maxvar / 2; y++)
-			d.z[x + y] = z[x][y];
-		if (x == 0)
-			c = d;
-		else
-			c = c + d;
-	}
-	return (c);
-}
-
-static var_t
 do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 {
 	variable_t t[maxvar / 2][maxvar / 2];
@@ -932,7 +906,7 @@ top:
 	if (greater)
 		(a > b).equal_to_const(false);
 
-	e = do_mul_linear_v1(a, b);
+	e = (a * b);
 
 	e.equal_to_var(f);
 
@@ -1237,7 +1211,7 @@ top:
 
 	do_cnf_header();
 
-	e = do_mul_linear_v1(a, a);
+	e = (a * a);
 
 	if (rounded) {
 		var_t b;
