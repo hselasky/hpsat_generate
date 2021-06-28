@@ -146,11 +146,11 @@ public:
 		return (*this);
 	};
 
-	void alloc(size_t max = maxvar) {
+	void alloc(size_t max = maxvar, bool is_signed = false) {
 		for (size_t x = 0; x != max; x++)
 			z[x].v = new_variable();
 		for (size_t x = max; x != maxvar; x++)
-			z[x].v = zerovar;
+			z[x].v = is_signed ? z[max - 1].v : zerovar;
 	};
 
 	void from_const(uint64_t var) {
@@ -1814,10 +1814,14 @@ main(int argc, char **argv)
 				if (*ptr >= '0' && *ptr <= '9') {
 					cvalue *= 10;
 					cvalue += *ptr - '0';
+				} else if (*ptr == '-' && ptr == optarg) {
+					continue;
 				} else {
 					usage();
 				}
 			}
+			if (optarg[0] == '-')
+				cvalue = -cvalue;
 			cmask = 1;
 			break;
 		case 'g':
