@@ -255,22 +255,19 @@ public:
 	};
 
 	var_t operator +(const var_t &other) const {
-		var_t r;
-		var_t d;
-		var_t e;
+		const var_t &a = *this;
+		const var_t &b = other;
+		var_t c;
 
-		r.alloc();
-		d.alloc();
-		e.alloc();
+		c.alloc();
 
-		var_t common = *this ^ other ^ r;
+		/*
+		 * Build equation for addition after HP Selasky 2021:
+		 * a + b = c
+		 */
+		(a ^ b ^ c ^ ((a | b) << 1) ^ ((a & c) << 1) ^ ((b & c) << 1)).equal_to_const(false);
 
-		/* Build equation for addition after HP Selasky 2021 */
-		(common ^ d ^ e ^ ((*this & other) << 1)).equal_to_const(false);
-		(common ^ e ^ ((*this & ~r) << 1)).equal_to_const(false);
-		(common ^ d ^ ((other & ~r) << 1)).equal_to_const(false);
-
-		return (r);
+		return (c);
 	};
 
 	var_t &operator +=(const var_t &other) {
@@ -280,19 +277,16 @@ public:
 
 	var_t operator -(const var_t &other) const {
 		var_t a;
-		var_t d;
-		var_t e;
+		const var_t &b = other;
+		const var_t &c = *this;
 
 		a.alloc();
-		d.alloc();
-		e.alloc();
 
-		var_t common = a ^ other ^ *this;
-
-		/* Build equation for subtraction after HP Selasky 2021 */
-		(common ^ d ^ e ^ ((a & other) << 1)).equal_to_const(false);
-		(common ^ e ^ ((a & ~*this) << 1)).equal_to_const(false);
-		(common ^ d ^ ((other & ~*this) << 1)).equal_to_const(false);
+		/*
+		 * Build equation for addition after HP Selasky 2021:
+		 * a = c - b
+		 */
+		(a ^ b ^ c ^ ((a | b) << 1) ^ ((a & c) << 1) ^ ((b & c) << 1)).equal_to_const(false);
 
 		return (a);
 	};
