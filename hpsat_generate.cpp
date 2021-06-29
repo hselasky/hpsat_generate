@@ -779,7 +779,6 @@ top:
 	var_t a;
 	var_t b;
 	var_t f;
-	var_t e;
 
 	a.alloc();
 	b.alloc();
@@ -801,9 +800,7 @@ top:
 
 	do_cnf_header();
 
-	e = a + b;
-
-	e.equal_to_var(f);
+	(a + b).equal_to_var(f);
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
@@ -811,8 +808,8 @@ top:
 	}
 
 	if (greater) {
-		(a > e).equal_to_const(false);
-		(b > e).equal_to_const(false);
+		(a > f).equal_to_const(false);
+		(b > f).equal_to_const(false);
 	}
 
 	if (runs++ == 0)
@@ -881,7 +878,6 @@ top:
 	var_t a;
 	var_t b;
 	var_t f;
-	var_t e;
 
 	a.alloc(maxvar / 2);
 	b.alloc(maxvar / 2);
@@ -906,9 +902,7 @@ top:
 	if (greater)
 		(a > b).equal_to_const(false);
 
-	e = (a * b);
-
-	e.equal_to_var(f);
+	(a * b).equal_to_var(f);
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
