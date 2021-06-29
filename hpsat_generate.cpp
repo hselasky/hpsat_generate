@@ -265,7 +265,10 @@ public:
 		 * Build equation for addition after HP Selasky 2021:
 		 * a + b = c
 		 */
-		(a ^ b ^ c ^ ((a | b) << 1) ^ ((a & c) << 1) ^ ((b & c) << 1)).equal_to_const(false);
+		var_t t = (a ^ b);
+		var_t u = (a | b);
+
+		(t ^ c ^ (u << 1) ^ ((t & c) << 1)).equal_to_const(false);
 
 		return (c);
 	};
@@ -286,7 +289,10 @@ public:
 		 * Build equation for addition after HP Selasky 2021:
 		 * a = c - b
 		 */
-		(a ^ b ^ c ^ ((a | b) << 1) ^ ((a & c) << 1) ^ ((b & c) << 1)).equal_to_const(false);
+		var_t t = (a ^ b);
+		var_t u = (a | b);
+
+		(t ^ c ^ (u << 1) ^ ((t & c) << 1)).equal_to_const(false);
 
 		return (a);
 	};
