@@ -1667,7 +1667,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in (" << a.z[z].v << " / " << b.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf("c Solution in (" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
