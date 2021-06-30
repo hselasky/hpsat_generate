@@ -82,6 +82,8 @@ public:
 		assert(v != 0);
 		return (*this);
 	};
+	void toggleInverted(void);
+	bool isInverted(void);
 	void equal_to_const(bool) const;
 	void equal_to_var(const variable_t &other) const;
 
@@ -507,6 +509,22 @@ variable_t :: equal_to_var(const variable_t &other) const
 	outcnf(-v << " " << other.v << " 0\n");
 	outcnf(v << " " << -other.v << " 0\n");
 	nexpr += 2;
+}
+
+void
+variable_t :: toggleInverted(void)
+{
+	assert(v != 0);
+
+	v = -v;
+}
+
+bool
+variable_t :: isInverted(void)
+{
+	assert(v != 0);
+
+	return (v < 0);
 }
 
 variable_t
@@ -1633,17 +1651,17 @@ top:
 	var_t f;
 	var_t e;
 
-	a.alloc();
-	b.alloc();
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
 	f.alloc();
 
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
 				       vf, f.z[0].v, maxvar) == 0) {
-			std::cout << va << " * " << vb << " = " << vf << "**-1\n";
+			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
 	}
@@ -1659,7 +1677,7 @@ top:
 	a.z[0].equal_to_const(true);
 	b.z[0].equal_to_const(true);
 	f.z[0].equal_to_const(true);
-	e.z[0] = -zerovar;
+	e.z[0].toggleInverted();
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
@@ -1675,8 +1693,18 @@ top:
 		e += (e << z) & bit;
 	}
 
+	var_t g;
+
+	g.z[0].toggleInverted();
+
+	for (size_t z = 1; z != maxvar; z++) {
+		bit = e.z[z];
+		e += (e << z) & bit;
+		g += (g << z) & bit;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
-		f.z[z].equal_to_var(e.z[z]);
+		f.z[z].equal_to_var(g.z[z]);
 
 	if (runs++ == 0)
 		goto top;
@@ -1699,17 +1727,17 @@ top:
 	var_t f;
 	var_t e;
 
-	a.alloc();
-	b.alloc();
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
 	f.alloc();
 
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
 				       vf, f.z[0].v, maxvar) == 0) {
-			std::cout << va << " * " << vb << " = " << vf << "**-1\n";
+			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
 	}
@@ -1725,7 +1753,7 @@ top:
 	a.z[0].equal_to_const(true);
 	b.z[0].equal_to_const(true);
 	f.z[0].equal_to_const(true);
-	e.z[0] = -zerovar;
+	e.z[0].toggleInverted();
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
@@ -1741,8 +1769,18 @@ top:
 		e ^= (e << z) & bit;
 	}
 
+	var_t g;
+
+	g.z[0].toggleInverted();
+
+	for (size_t z = 1; z != maxvar; z++) {
+		bit = e.z[z];
+		e ^= (e << z) & bit;
+		g ^= (g << z) & bit;
+	}
+
 	for (size_t z = 0; z != maxvar; z++)
-		f.z[z].equal_to_var(e.z[z]);
+		f.z[z].equal_to_var(g.z[z]);
 
 	if (runs++ == 0)
 		goto top;
