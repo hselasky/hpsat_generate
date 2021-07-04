@@ -304,6 +304,28 @@ public:
 		return (*this);
 	};
 
+	var_t mul_xor(const var_t &other) const {
+		var_t r;
+		for (size_t x = 0; x != maxvar; x++) {
+			const var_t rol = (*this << x) ^ (*this >> (maxvar - x));
+			r = r ^ (rol & other.z[x]);
+		}
+		return (r);
+	};
+
+	var_t exp_xor(const var_t &other) const {
+		var_t base = *this;
+		var_t r;
+
+		r.from_const(1);
+
+		for (size_t x = 0; x != maxvar; x++) {
+			r = (r.mul_xor(base) & other.z[x]) ^ (r & ~other.z[x]);
+			base = base.mul_xor(base);
+		}
+		return (r);
+	};
+
 	var_t operator *(const var_t &other) const {
 		var_t r;
 		for (size_t x = 0; x != maxvar; x++)
@@ -1787,6 +1809,100 @@ top:
 }
 
 static void
+generate_mul_2adic_rol_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the 2-adic rotating multiplication of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc(maxvar);
+	b.alloc(maxvar);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " x " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	if (greater)
+		(a > b).equal_to_const(false);
+
+	a.mul_xor(b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_exp_2adic_rol_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the 2-adic rotating exponent of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a ** b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc(maxvar);
+	b.alloc(maxvar);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " ** " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	if (greater)
+		(a > b).equal_to_const(false);
+
+	a.exp_xor(b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
@@ -1813,6 +1929,8 @@ usage(void)
 	fprintf(stderr, "	-f 14  # Generate linear multiplier (v3)\n");
 	fprintf(stderr, "	-f 15  # Generate linear multiplier by squaring\n");
 	fprintf(stderr, "	-f 16  # Generate linear multiplier (v4)\n");
+	fprintf(stderr, "	-f 17  # Generate 2-adic rotating multiplier\n");
+	fprintf(stderr, "	-f 18  # Generate 2-adic rotating exponent\n");
 	exit(EX_USAGE);
 }
 
@@ -1927,6 +2045,12 @@ main(int argc, char **argv)
 		break;
 	case 16:
 		generate_mul_linear_v4_cnf();
+		break;
+	case 17:
+		generate_mul_2adic_rol_cnf();
+		break;
+	case 18:
+		generate_exp_2adic_rol_cnf();
 		break;
 	default:
 		usage();
