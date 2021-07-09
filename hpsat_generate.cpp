@@ -304,6 +304,37 @@ public:
 		return (*this);
 	};
 
+	var_t polar_add(const var_t &other) const {
+		var_t r;
+		r.alloc();
+
+		const var_t c = (*this & other) ^ (*this & r) ^ (other & r);
+
+		(*this ^ other ^ r ^ (c << 1)).equal_to_const(false);
+
+		return (r);
+	};
+
+	var_t polar_mul(const var_t &other) const {
+		var_t r;
+		var_t c;
+
+		for (size_t x = 0; x != maxvar; x++) {
+			const var_t a = (*this & other.z[x]) << x;
+
+			var_t var;
+			var.alloc();
+
+			const var_t cn = (r & a) ^ (r & var) ^ (a & var);
+
+			(r ^ a ^ var ^ c).equal_to_const(false);
+
+			r = var;
+			c = cn << 1;
+		}
+		return (r);
+	};
+
 	var_t mul_xor(const var_t &other) const {
 		var_t r;
 		for (size_t x = 0; x != maxvar; x++) {
@@ -1903,6 +1934,104 @@ top:
 }
 
 static void
+generate_polar_add_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the polar addition of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit sum: (a + b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc();
+	b.alloc();
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar,
+				       vb, b.z[0].v, maxvar,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " + " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	a.polar_add(b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (greater) {
+		(a > f).equal_to_const(false);
+		(b > f).equal_to_const(false);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_polar_mul_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the polar multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit sum: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a.z[0].v, maxvar / 2,
+				       vb, b.z[0].v, maxvar / 2,
+				       vf, f.z[0].v, maxvar) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	a.polar_mul(b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (greater) {
+		(a > f).equal_to_const(false);
+		(b > f).equal_to_const(false);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
@@ -1931,6 +2060,8 @@ usage(void)
 	fprintf(stderr, "	-f 16  # Generate linear multiplier (v4)\n");
 	fprintf(stderr, "	-f 17  # Generate 2-adic rotating multiplier\n");
 	fprintf(stderr, "	-f 18  # Generate 2-adic rotating exponent\n");
+	fprintf(stderr, "	-f 19  # Generate polar addition\n");
+	fprintf(stderr, "	-f 20  # Generate polar multiplication\n");
 	exit(EX_USAGE);
 }
 
@@ -2051,6 +2182,12 @@ main(int argc, char **argv)
 		break;
 	case 18:
 		generate_exp_2adic_rol_cnf();
+		break;
+	case 19:
+		generate_polar_add_cnf();
+		break;
+	case 20:
+		generate_polar_mul_cnf();
 		break;
 	default:
 		usage();
