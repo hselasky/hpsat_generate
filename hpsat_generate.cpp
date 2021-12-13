@@ -129,6 +129,11 @@ public:
 		z = new variable_t [maxvar];
 	};
 
+	var_t(const variable_t &other) {
+		z = new variable_t [maxvar];
+		z[0] = other;
+	};
+
 	var_t(const var_t &other) {
 		z = new variable_t [maxvar];
 
@@ -434,26 +439,16 @@ input_skip_space(std::string &line, size_t &offset)
 }
 
 static int
-input_variables(mpz_class &v0, ssize_t s0, ssize_t n0,
-		mpz_class &v1, ssize_t s1, ssize_t n1,
-		mpz_class &v2, ssize_t s2, ssize_t n2)
+input_variables(mpz_class &v0, const var_t &x0,
+		mpz_class &v1, const var_t &x1,
+		mpz_class &v2, const var_t &x2)
 {
 	std::string line;
 	ssize_t v;
 	size_t offset;
 	mpz_class one = 1;
-	bool sign;
 
-	if (s0 < 0)
-		s0 = -s0;
-	if (s1 < 0)
-		s1 = -s1;
-	if (s2 < 0)
-		s2 = -s2;
-
-	v0 = 0;
-	v1 = 0;
-	v2 = 0;
+	v0 = v1 = v2 = 0;
 
 	while (getline(std::cin, line)) {
 		if (line[0] != 'v')
@@ -466,13 +461,13 @@ input_variables(mpz_class &v0, ssize_t s0, ssize_t n0,
 			input_skip_space(line, offset);
 			if (v == 0)
 				return (0);
-			if (v > 0) {
-				if (v >= s0 && v < s0 + n0)
-					v0 |= one << (v - s0);
-				if (v >= s1 && v < s1 + n1)
-					v1 |= one << (v - s1);
-				if (v >= s2 && v < s2 + n2)
-					v2 |= one << (v - s2);
+			for (size_t x = 0; x != maxvar; x++) {
+				if (x0.z[x].v == v)
+					v0 |= one << x;
+				if (x1.z[x].v == v)
+					v1 |= one << x;
+				if (x2.z[x].v == v)
+					v2 |= one << x;
 			}
 		}
 	}
@@ -858,9 +853,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " + " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -908,9 +903,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " x " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -957,9 +952,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1005,9 +1000,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1054,9 +1049,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1104,9 +1099,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " * 2 = " << vf << "\n";
 		}
 		return;
@@ -1163,9 +1158,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1213,9 +1208,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << "**2 - " << vb << "**2 = " << vf << "\n";
 		}
 		return;
@@ -1263,9 +1258,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, 0, 0,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, var_t(),
+				       vf, f) == 0) {
 			std::cout << "sqrt(" << vf << ") = " << va << "\n";
 		}
 		return;
@@ -1318,9 +1313,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, 0, 0,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, var_t(),
+				       vf, f) == 0) {
 			std::cout << vf << " mod " << va << " = 0\n";
 		}
 		return;
@@ -1360,9 +1355,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vc;
 
-		while (input_variables(va, a.v, 1,
-				       vb, b.v, 1,
-				       vc, 0, 0) == 0) {
+		while (input_variables(va, var_t(a),
+				       vb, var_t(b),
+				       vc, var_t()) == 0) {
 			std::cout << va << " & " << vb << " = 0\n";
 		}
 		return;
@@ -1397,9 +1392,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vc;
 
-		while (input_variables(va, a.v, 1,
-				       vb, b.v, 1,
-				       vc, 0, 0) == 0) {
+		while (input_variables(va, var_t(a),
+				       vb, var_t(b),
+				       vc, var_t()) == 0) {
 			std::cout << va << " | " << vb << " = 0\n";
 		}
 		return;
@@ -1434,9 +1429,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vc;
 
-		while (input_variables(va, a.v, 1,
-				       vb, b.v, 1,
-				       vc, 0, 0) == 0) {
+		while (input_variables(va, var_t(a),
+				       vb, var_t(b),
+				       vc, var_t()) == 0) {
 			std::cout << va << " ^ " << vb << " = 0\n";
 		}
 		return;
@@ -1583,9 +1578,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vc;
 
-		while (input_variables(va, var.z[0].v, maxvar,
-				       vb, 0, 0,
-				       vc, 0, 0) == 0) {
+		while (input_variables(va, var,
+				       vb, var_t(),
+				       vc, var_t()) == 0) {
 			for (size_t x = 0; x != maxvar; x++) {
 				if (~(mask >> x) & 1)
 					continue;
@@ -1649,9 +1644,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar / 2) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " / " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1714,9 +1709,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1790,9 +1785,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1862,9 +1857,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " x " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1909,9 +1904,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " ** " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -1956,9 +1951,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar,
-				       vb, b.z[0].v, maxvar,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " + " << vb << " = " << vf << "\n";
 		}
 		return;
@@ -2005,9 +2000,9 @@ top:
 	if (do_parse) {
 		mpz_class va,vb,vf;
 
-		while (input_variables(va, a.z[0].v, maxvar / 2,
-				       vb, b.z[0].v, maxvar / 2,
-				       vf, f.z[0].v, maxvar) == 0) {
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
 			std::cout << va << " * " << vb << " = " << vf << "\n";
 		}
 		return;
