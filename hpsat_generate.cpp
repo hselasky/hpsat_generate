@@ -1622,7 +1622,7 @@ top:
 }
 
 static void
-generate_div_linear_v1_cnf(void)
+generate_div_linear_v1_cnf(bool isSquare)
 {
 	mpz_class cvalue_sqrt = sqrt(cvalue);
 top:
@@ -1640,7 +1640,10 @@ top:
 	var_t g;
 
 	f.alloc(maxvar / 2);
-	b.alloc(maxvar / 2);
+	if (isSquare)
+		b = f;
+	else
+		b.alloc(maxvar / 2);
 	a.alloc();
 
 	if (do_parse) {
@@ -2062,6 +2065,7 @@ usage(void)
 	fprintf(stderr, "	-f 18  # Generate 2-adic rotating exponent\n");
 	fprintf(stderr, "	-f 19  # Generate polar addition\n");
 	fprintf(stderr, "	-f 20  # Generate polar multiplication\n");
+	fprintf(stderr, "	-f 21  # Generate linear square divisor\n");
 	exit(EX_USAGE);
 }
 
@@ -2160,7 +2164,7 @@ main(int argc, char **argv)
 		generate_xor_cnf();
 		break;
 	case 11:
-		generate_div_linear_v1_cnf();
+		generate_div_linear_v1_cnf(false);
 		break;
 	case 12:
 		generate_inv_multiplier_v1_cnf();
@@ -2188,6 +2192,9 @@ main(int argc, char **argv)
 		break;
 	case 20:
 		generate_polar_mul_cnf();
+		break;
+	case 21:
+		generate_div_linear_v1_cnf(true);
 		break;
 	default:
 		usage();
