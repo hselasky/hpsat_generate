@@ -727,6 +727,26 @@ do_add_half_v1(const var_t &a, var_t &r, var_t &c, const var_t &z)
 	}
 }
 
+/*
+ * Geometric layout of half multiplier in 2-D:
+ *
+ *     +---------+
+ *     | 0,1 1,1 |
+ *     |         |
+ *     | 0,0 1,0 |
+ *     +---------+-------+
+ *     | MSB     |  LSB  |
+ */
+static void
+do_mul_half_v1(const variable_t &v0_0,
+	       const variable_t &v0_1,
+	       const variable_t &v1_0,
+	       const variable_t &v1_1)
+{
+	/* half multiplier after HP Selasky 2021 */
+	(v0_0 ^ v0_1 ^ (~v1_0 & v1_1)).equal_to_const(false);
+}
+
 static variable_t
 do_sub_if_gte(var_t &a, var_t &b, const var_t &value)
 {
@@ -868,6 +888,42 @@ do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 	c = c ^ zero;
 
 	return (c);
+}
+
+static void
+do_half_mul_linear(const var_t &a, const var_t &b, const var_t &r)
+{
+	variable_t t[maxvar][maxvar];
+
+	/* allocate variables */
+	for (size_t x = 1; x != maxvar; x++) {
+		for (size_t y = 1; y != maxvar - 1; y++) {
+			t[x][y] = new_variable();
+		}
+	}
+
+	/* setup variables */
+	for (size_t x = 0; x != maxvar; x++) {
+		t[x][0] = a.z[x];
+		t[0][x] = b.z[x];
+		t[x][maxvar - 1] = r.z[x];
+	}
+
+	/* 0,0 is shared */
+	a.z[0].equal_to_var(b.z[0]);
+
+	/* 0,N-1 is shared */
+	b.z[maxvar - 1].equal_to_var(r.z[0]);
+
+	/* build logic */
+	for (size_t x = 0; x < maxvar - 1; x++) {
+		for (size_t y = 0; y < maxvar - 1; y++) {
+			do_mul_half_v1(t[x+1][y+1],
+				       t[x+1][y],
+				       t[x][y+1],
+				       t[x][y]);
+		}
+	}
 }
 
 static void
@@ -1162,6 +1218,50 @@ top:
 		r = r + ((a ^ b.z[x]) << x);
 
 	(h - r - a - b).equal_to_var(f);
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_half_mul_linear_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the linear HPS multiplication of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc();
+	b.alloc();
+	f.alloc();
+
+	if (do_parse == true) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	do_cnf_header();
+
+	do_half_mul_linear(a, b, f);
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	if (cmask) {
 		for (size_t z = 0; z != maxvar; z++)
@@ -2147,6 +2247,7 @@ usage(void)
 	fprintf(stderr, "	-f 21  # Generate linear square divisor\n");
 	fprintf(stderr, "	-f 22  # Generate linear multiplier (v5)\n");
 	fprintf(stderr, "	-f 23  # Generate linear squarer (v2)\n");
+	fprintf(stderr, "	-f 24  # Generate half multiplier\n");
 	exit(EX_USAGE);
 }
 
@@ -2282,6 +2383,9 @@ main(int argc, char **argv)
 		break;
 	case 23:
 		generate_zero_mul_linear_cnf(true);
+		break;
+	case 24:
+		generate_half_mul_linear_cnf();
 		break;
 	default:
 		usage();
