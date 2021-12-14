@@ -47,13 +47,17 @@ static size_t maxvar;
 static int zerovar;
 static int runs;
 static int function;
-static int cmask;
-static mpz_class cvalue;
+static mpz_class a_value;
+static mpz_class b_value;
+static mpz_class r_value;
 static int greater;
 static int rounded;
 static int varlimit;
 static const char *inputexpr;
 static int do_parse;
+static int has_a_value;
+static int has_b_value;
+static int has_r_value;
 
 #define	outcnf(...) do { \
     if (runs) \
@@ -409,6 +413,24 @@ public:
 		return ~(other - *this).z[maxvar - 1];
 	};
 };
+
+static void
+set_value(const var_t &f, mpz_class value)
+{
+	for (size_t z = 0; z != maxvar; z++)
+		f.z[z].equal_to_const(((value >> z) & 1) != 0);
+}
+
+static void
+set_values(const var_t &a, const var_t &b, const var_t &r)
+{
+	if (has_a_value)
+		set_value(a, a_value);
+	if (has_b_value)
+		set_value(b, b_value);
+	if (has_r_value)
+		set_value(r, r_value);
+}
 
 static ssize_t
 input_read_value(std::string &line, size_t &offset)
@@ -931,7 +953,7 @@ generate_adder_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the addition of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a + b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -961,10 +983,7 @@ top:
 
 	(a + b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (greater) {
 		(a > f).equal_to_const(false);
@@ -980,7 +999,7 @@ generate_mul_2adic_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the 2-adic multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1016,10 +1035,7 @@ top:
 
 	e.equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1030,7 +1046,7 @@ generate_mul_linear_v1_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1063,10 +1079,7 @@ top:
 
 	(a * b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1077,7 +1090,7 @@ generate_mul_linear_v2_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1113,10 +1126,7 @@ top:
 
 	e.equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1127,7 +1137,7 @@ generate_mul_linear_v3_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1160,10 +1170,7 @@ top:
 
 	(a * b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1172,10 +1179,10 @@ top:
 static void
 generate_mul_linear_v4_cnf(void)
 {
-	mpz_class cvalue_sqrt = sqrt(cvalue);
+	mpz_class r_value_sqrt = sqrt(r_value);
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1202,7 +1209,7 @@ top:
 
 	for (size_t z = 0; z != maxvar; z++) {
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
-		g.z[z].v = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
+		g.z[z].v = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
 	}
 
 	do_cnf_header();
@@ -1219,10 +1226,7 @@ top:
 
 	(h - r - a - b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1233,7 +1237,7 @@ generate_half_mul_linear_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear HPS multiplication of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1263,10 +1267,7 @@ top:
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1275,10 +1276,10 @@ top:
 static void
 generate_mul_linear_limit_cnf(void)
 {
-	mpz_class cvalue_sqrt = sqrt(cvalue);
+	mpz_class r_value_sqrt = sqrt(r_value);
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1307,7 +1308,7 @@ top:
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	for (size_t z = 0; z != maxvar; z++)
-		g.z[z] = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
+		g.z[z] = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
 
 	do_cnf_header();
 
@@ -1317,8 +1318,7 @@ top:
 
 	(a * b).equal_to_var(f);
 
-	for (size_t z = 0; z != maxvar; z++)
-		f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1329,7 +1329,7 @@ generate_mul_linear_by_squaring_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * a) - (b * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * a) - (b * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1367,10 +1367,7 @@ top:
 
 	(a * a - b * b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1381,7 +1378,7 @@ generate_sqr_linear_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
-	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << cvalue << "\n");
+	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1423,10 +1420,7 @@ top:
 
 	e.equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,var_t(),f);
 
 	if (runs++ == 0)
 		goto top;
@@ -1437,7 +1431,7 @@ generate_zero_mod_linear_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear modulus of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a % b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a % b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1463,12 +1457,7 @@ top:
 
 	do_cnf_header();
 
-	if (cmask) {
-		if ((cvalue & 1) != 0)
-			a.z[0].equal_to_const(true);
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,var_t(),f);
 
 	do_zero_mod_linear(f, a);
 
@@ -1481,7 +1470,7 @@ generate_zero_mul_linear_cnf(bool isSquare)
 {
 top:
 	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1512,10 +1501,7 @@ top:
 
 	do_cnf_header();
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	do_zero_mul_linear(f, a, b);
 
@@ -1553,8 +1539,8 @@ top:
 
 	c = (a & b);
 
-	if (cmask)
-		c.equal_to_const((cvalue & 1) != 0);
+	if (has_r_value)
+		c.equal_to_const((r_value & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1590,8 +1576,8 @@ top:
 
 	c = (a | b);
 
-	if (cmask)
-		c.equal_to_const((cvalue & 1) != 0);
+	if (has_r_value)
+		c.equal_to_const((r_value & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1627,8 +1613,8 @@ top:
 
 	c = (a ^ b);
 
-	if (cmask)
-		c.equal_to_const((cvalue & 1) != 0);
+	if (has_r_value)
+		c.equal_to_const((r_value & 1) != 0);
 
 	if (runs++ == 0)
 		goto top;
@@ -1803,12 +1789,12 @@ top:
 static void
 generate_div_linear_v1_cnf(bool isSquare)
 {
-	mpz_class cvalue_sqrt = sqrt(cvalue);
+	mpz_class r_value_sqrt = sqrt(r_value);
 top:
 	outcnf("c The following CNF computes a divisor\n"
 	       "c having " << (maxvar / 2) << " bits for each variable and\n"
 	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << cvalue << "\n");
+	       "c The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1840,7 +1826,7 @@ top:
 		outcnf("c Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	for (size_t z = 0; z != maxvar; z++)
-		g.z[z].v = (((cvalue_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
+		g.z[z].v = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
 
 	do_cnf_header();
 
@@ -1851,10 +1837,7 @@ top:
 		(f > a).equal_to_const(false);
 	}
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			a.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(f,b,a);
 
 	for (size_t z = 0; z != (maxvar / 2); z++) {
 		variable_t bit = a.z[z];
@@ -1876,7 +1859,7 @@ top:
 	outcnf("c The following CNF computes an inverse multiplier\n"
 	       "c having " << maxvar << " bits for each variable and\n"
 	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << cvalue << "\n");
+	       "c The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1914,10 +1897,7 @@ top:
 	f.z[0].equal_to_const(true);
 	e.z[0].toggleInverted();
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	for (size_t z = 1; z != maxvar; z++) {
 		bit = a.z[z];
@@ -1952,7 +1932,7 @@ top:
 	outcnf("c The following CNF computes an inverse multiplier\n"
 	       "c having " << maxvar << " bits for each variable and\n"
 	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << cvalue << "\n");
+	       "c The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1990,10 +1970,7 @@ top:
 	f.z[0].equal_to_const(true);
 	e.z[0].toggleInverted();
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	for (size_t z = 1; z != maxvar; z++) {
 		bit = a.z[z];
@@ -2026,7 +2003,7 @@ generate_mul_2adic_rol_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the 2-adic rotating multiplication of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2059,10 +2036,7 @@ top:
 
 	a.mul_xor(b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -2073,7 +2047,7 @@ generate_exp_2adic_rol_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the 2-adic rotating exponent of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a ** b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit product: (a ** b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2106,10 +2080,7 @@ top:
 
 	a.exp_xor(b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (runs++ == 0)
 		goto top;
@@ -2120,7 +2091,7 @@ generate_polar_add_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the polar addition of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a + b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2150,10 +2121,7 @@ top:
 
 	a.polar_add(b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (greater) {
 		(a > f).equal_to_const(false);
@@ -2169,7 +2137,7 @@ generate_polar_mul_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the polar multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a * b) = " << cvalue << "\n");
+	       "c variables into a " << maxvar << " bit sum: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2199,10 +2167,7 @@ top:
 
 	a.polar_mul(b).equal_to_var(f);
 
-	if (cmask) {
-		for (size_t z = 0; z != maxvar; z++)
-			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
-	}
+	set_values(a,b,f);
 
 	if (greater) {
 		(a > f).equal_to_const(false);
@@ -2216,10 +2181,12 @@ top:
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ] [ -m <value> ]\n", MAXVAR);
+	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ]\n", MAXVAR);
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-p     # pretty print result from solver via standard input\n");
 	fprintf(stderr, "	-g     # b >= a\n");
+	fprintf(stderr, "	-A <X> # specify \"A\" value\n");
+	fprintf(stderr, "	-B <X> # specify \"B\" value\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
 	fprintf(stderr, "	-r     # rounded\n");
 	fprintf(stderr, "	-i <X> # Input binary expression, which must be equal to zero\n");
@@ -2254,7 +2221,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:Vi:p";
+	const char *const optstring = "ghf:cb:rv:Vi:pA:B:";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
@@ -2275,12 +2242,13 @@ main(int argc, char **argv)
 			else if (maxvar < 1)
 				maxvar = 1;
 			break;
-		case 'v':
-			cvalue = 0;
+		case 'A':
+			has_a_value = 1;
+			a_value = 0;
 			for (const char *ptr = optarg; *ptr != 0; ptr++) {
 				if (*ptr >= '0' && *ptr <= '9') {
-					cvalue *= 10;
-					cvalue += *ptr - '0';
+					a_value *= 10;
+					a_value += *ptr - '0';
 				} else if (*ptr == '-' && ptr == optarg) {
 					continue;
 				} else {
@@ -2288,8 +2256,39 @@ main(int argc, char **argv)
 				}
 			}
 			if (optarg[0] == '-')
-				cvalue = -cvalue;
-			cmask = 1;
+				a_value = -a_value;
+			break;
+		case 'B':
+			has_b_value = 1;
+			b_value = 0;
+			for (const char *ptr = optarg; *ptr != 0; ptr++) {
+				if (*ptr >= '0' && *ptr <= '9') {
+					b_value *= 10;
+					b_value += *ptr - '0';
+				} else if (*ptr == '-' && ptr == optarg) {
+					continue;
+				} else {
+					usage();
+				}
+			}
+			if (optarg[0] == '-')
+				b_value = -b_value;
+			break;
+		case 'v':
+			has_r_value = 1;
+			r_value = 0;
+			for (const char *ptr = optarg; *ptr != 0; ptr++) {
+				if (*ptr >= '0' && *ptr <= '9') {
+					r_value *= 10;
+					r_value += *ptr - '0';
+				} else if (*ptr == '-' && ptr == optarg) {
+					continue;
+				} else {
+					usage();
+				}
+			}
+			if (optarg[0] == '-')
+				r_value = -r_value;
 			break;
 		case 'g':
 			greater = 1;
@@ -2329,7 +2328,7 @@ main(int argc, char **argv)
 		generate_zero_mod_linear_cnf();
 		break;
 	case 6:
-		if (!cmask)
+		if (has_r_value == 0)
 			usage();
 		generate_mul_linear_limit_cnf();
 		break;
