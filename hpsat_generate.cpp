@@ -766,6 +766,43 @@ do_zero_mod_linear(var_t &rem, const var_t &hdiv)
 	rem.equal_to_var(sub);
 }
 
+static variable_t
+do_cond_half_sub(var_t &a, var_t &b, const var_t &value, const variable_t &gte)
+{
+	var_t x;
+	var_t y;
+
+	x = a ^ b ^ value;
+	y = ((~a & b) | (~(a & ~b) & value)) << 1;
+
+	a = (x & gte) | (a & ~gte);
+	b = (y & gte) | (b & ~gte);
+
+	return (gte);
+}
+
+static void
+do_zero_mul_linear(var_t &rem, const var_t &hdiv, const var_t &vmul)
+{
+	var_t sub;
+	var_t tmp;
+	size_t max = (maxvar / 2);
+
+	for (size_t x = maxvar - max + 1; x--;) {
+		for (size_t y = 0; y != x; y++)
+			tmp.z[y] = zerovar;
+		for (size_t y = x; y != (x + max); y++)
+			tmp.z[y] = hdiv.z[y - x];
+		for (size_t y = (x + max); y != maxvar; y++)
+			tmp.z[y] = zerovar;
+
+		do_cond_half_sub(rem, sub, tmp, vmul.z[x]);
+	}
+
+	/* result must be zero */
+	rem.equal_to_var(sub);
+}
+
 static var_t
 do_mul_2adic(const var_t &a, const var_t &b)
 {
@@ -1296,7 +1333,7 @@ top:
 }
 
 static void
-generate_mod_linear_cnf(void)
+generate_zero_mod_linear_cnf(void)
 {
 top:
 	outcnf("c The following CNF computes the linear modulus of two " << (maxvar / 2) << " bit\n"
@@ -1334,6 +1371,53 @@ top:
 	}
 
 	do_zero_mod_linear(f, a);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_zero_mul_linear_cnf(bool isSquare)
+{
+top:
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << cvalue << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+
+	a.alloc(maxvar / 2);
+	if (isSquare)
+		b = a;
+	else
+		b.alloc(maxvar / 2);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
+			std::cout << vf << " = " << va << " * " << vb << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in " << f.z[z].v << " = " << a.z[z].v << " * " << b.z[z].v << "\n");
+
+	do_cnf_header();
+
+	if (cmask) {
+		for (size_t z = 0; z != maxvar; z++)
+			f.z[z].equal_to_const(((cvalue >> z) & 1) != 0);
+	}
+
+	do_zero_mul_linear(f, a, b);
 
 	if (runs++ == 0)
 		goto top;
@@ -2043,7 +2127,7 @@ usage(void)
 	fprintf(stderr, "	-f 1   # Generate linear adder\n");
 	fprintf(stderr, "	-f 2   # Generate 2-adic multiplier\n");
 	fprintf(stderr, "	-f 3   # Generate linear multiplier (v1)\n");
-	fprintf(stderr, "	-f 4   # Generate linear square\n");
+	fprintf(stderr, "	-f 4   # Generate linear square (v1)\n");
 	fprintf(stderr, "	-f 5   # Generate linear zero mod\n");
 	fprintf(stderr, "	-f 6 -v <X> # Generate linear multiplier with variable limit\n");
 	fprintf(stderr, "	-f 7   # Generate linear multiplier (v2)\n");
@@ -2061,6 +2145,8 @@ usage(void)
 	fprintf(stderr, "	-f 19  # Generate polar addition\n");
 	fprintf(stderr, "	-f 20  # Generate polar multiplication\n");
 	fprintf(stderr, "	-f 21  # Generate linear square divisor\n");
+	fprintf(stderr, "	-f 22  # Generate linear multiplier (v5)\n");
+	fprintf(stderr, "	-f 23  # Generate linear squarer (v2)\n");
 	exit(EX_USAGE);
 }
 
@@ -2139,7 +2225,7 @@ main(int argc, char **argv)
 		generate_sqr_linear_cnf();
 		break;
 	case 5:
-		generate_mod_linear_cnf();
+		generate_zero_mod_linear_cnf();
 		break;
 	case 6:
 		if (!cmask)
@@ -2190,6 +2276,12 @@ main(int argc, char **argv)
 		break;
 	case 21:
 		generate_div_linear_v1_cnf(true);
+		break;
+	case 22:
+		generate_zero_mul_linear_cnf(false);
+		break;
+	case 23:
+		generate_zero_mul_linear_cnf(true);
 		break;
 	default:
 		usage();
