@@ -461,6 +461,20 @@ input_skip_space(std::string &line, size_t &offset)
 }
 
 static int
+compare_variable(const void *a, const void *b)
+{
+	ssize_t va = *(ssize_t *)a;
+	ssize_t vb = *(ssize_t *)b;
+
+	if (va > vb)
+		return (1);
+	else if (va < vb)
+		return (-1);
+	else
+		return (0);
+}
+
+static int
 input_variables(mpz_class &v0, const var_t &x0,
 		mpz_class &v1, const var_t &x1,
 		mpz_class &v2, const var_t &x2)
@@ -469,8 +483,30 @@ input_variables(mpz_class &v0, const var_t &x0,
 	ssize_t v;
 	size_t offset;
 	mpz_class one = 1;
+	ssize_t map[3 * maxvar];
+	uint8_t value[3 * maxvar];
+	size_t nvar;
+	ssize_t *ptr;
 
-	v0 = v1 = v2 = 0;
+	for (size_t x = 0; x != maxvar; x++) {
+		map[x] = x0.z[x].v;
+		map[x + maxvar] = x1.z[x].v;
+		map[x + 2 * maxvar] = x2.z[x].v;
+	}
+
+	mergesort(map, 3 * maxvar, sizeof(map[0]), &compare_variable);
+
+	for (size_t x = nvar = 0; x != 3 * maxvar; ) {
+		size_t y;
+		for (y = x + 1; y != 3 * maxvar; y++) {
+			if (compare_variable(map + x, map + y))
+				break;
+		}
+		map[nvar++] = map[x];
+		x = y;
+	}
+
+	memset(value, 0, nvar * sizeof(value[0]));
 
 	while (getline(std::cin, line)) {
 		if (line[0] != 'v')
@@ -481,16 +517,28 @@ input_variables(mpz_class &v0, const var_t &x0,
 			input_skip_space(line, offset);
 			v = input_read_value(line, offset);
 			input_skip_space(line, offset);
-			if (v == 0)
+			if (v == 0) {
+				v0 = v1 = v2 = 0;
+
+				for (size_t x = 0; x != maxvar; x++) {
+					v = x0.z[x].v;
+					ptr = (ssize_t *)bsearch(&v, map, nvar, sizeof(map[0]), &compare_variable);
+					if (value[ptr - map])
+						v0 |= one << x;
+					v = x1.z[x].v;
+					ptr = (ssize_t *)bsearch(&v, map, nvar, sizeof(map[0]), &compare_variable);
+					if (value[ptr - map])
+						v1 |= one << x;
+					v = x2.z[x].v;
+					ptr = (ssize_t *)bsearch(&v, map, nvar, sizeof(map[0]), &compare_variable);
+					if (value[ptr - map])
+						v2 |= one << x;
+				}
 				return (0);
-			for (size_t x = 0; x != maxvar; x++) {
-				if (x0.z[x].v == v)
-					v0 |= one << x;
-				if (x1.z[x].v == v)
-					v1 |= one << x;
-				if (x2.z[x].v == v)
-					v2 |= one << x;
 			}
+			ptr = (ssize_t *)bsearch(&v, map, nvar, sizeof(map[0]), &compare_variable);
+			if (ptr != 0)
+				value[ptr - map] = 1;
 		}
 	}
 	return (-1);
