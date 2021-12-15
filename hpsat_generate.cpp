@@ -995,6 +995,132 @@ do_full_add_linear(const variable_t *pa, const variable_t *pb,
 	}
 }
 
+static var_t
+do_sqr_linear_v2(const var_t &a)
+{
+	size_t sz = ((maxvar / 2) * (maxvar / 2) - (maxvar / 2)) / 2;
+	variable_t ta[sz];
+	var_t tn;
+	var_t t;
+
+	for (size_t x = 0, z = 0; x != maxvar / 2; x++) {
+		for (size_t y = x + 1; y != maxvar / 2; y++, z++) {
+			ta[z] = a.z[x] & a.z[y];
+		}
+	}
+
+	for (size_t p = 0, n; p != maxvar; p++) {
+		n = (~p & 1);
+
+		for (size_t x = 0; x != maxvar / 2; x++) {
+			for (size_t y = x + 1; y != maxvar / 2; y++) {
+				if (x + y + 1 == p)
+					n++;
+			}
+		}
+
+		variable_t bv[2 * n];
+
+		n = 0;
+		if (~p & 1)
+			bv[1 + 2 * n++] = a.z[p / 2];
+
+		for (size_t x = 0, z = 0; x != maxvar / 2; x++) {
+			for (size_t y = x + 1; y != maxvar / 2; y++, z++) {
+				if (x + y + 1 == p)
+					bv[1 + 2 * n++] = ta[z];
+			}
+		}
+
+		size_t as = 0;
+
+		for (size_t log2 = 0;; log2++) {
+			if ((1UL << log2) > (n + (n + 1) / 2)) {
+				as = log2;
+				break;
+			}
+		}
+
+		if (as == 0)
+			continue;
+
+		if (p + as >= maxvar)
+			as = maxvar - p;
+
+		tn = t;
+
+		for (size_t x = 0; x != as; x++)
+			tn.z[p + x] = new_variable();
+
+		do_full_add_linear(t.z + p, bv, tn.z + p, as, 2 * n);
+
+		t = tn;
+	}
+	return (t);
+}
+
+static var_t
+do_mul_linear_v4(const var_t &a, const var_t &b)
+{
+	size_t sz = (maxvar / 2) * (maxvar / 2);
+	variable_t ta[sz];
+	var_t tn;
+	var_t t;
+
+	for (size_t x = 0, z = 0; x != maxvar / 2; x++) {
+		for (size_t y = 0; y != maxvar / 2; y++, z++) {
+			ta[z] = a.z[x] & b.z[y];
+		}
+	}
+
+	for (size_t p = 0, n; p != maxvar; p++) {
+		n = 0;
+
+		for (size_t x = 0; x != maxvar / 2; x++) {
+			for (size_t y = 0; y != maxvar / 2; y++) {
+				if (x + y == p)
+					n++;
+			}
+		}
+
+		variable_t bv[2 * n];
+
+		n = 0;
+
+		for (size_t x = 0, z = 0; x != maxvar / 2; x++) {
+			for (size_t y = 0; y != maxvar / 2; y++, z++) {
+				if (x + y == p)
+					bv[1 + 2 * n++] = ta[z];
+			}
+		}
+
+		size_t as = 0;
+
+		for (size_t log2 = 0;; log2++) {
+			if ((1UL << log2) > (n + (n + 1) / 2)) {
+				as = log2;
+				break;
+			}
+		}
+
+		if (as == 0)
+			continue;
+
+		if (p + as >= maxvar)
+			as = maxvar - p;
+
+		tn = t;
+
+		for (size_t x = 0; x != as; x++)
+			tn.z[p + x] = new_variable();
+
+		do_full_add_linear(t.z + p, bv, tn.z + p, as, 2 * n);
+
+		t = tn;
+	}
+	return (t);
+}
+
 static void
 generate_adder_cnf(void)
 {
@@ -1280,6 +1406,52 @@ top:
 }
 
 static void
+generate_mul_linear_v5_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
+	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t f;
+	var_t h;
+
+	a.alloc(maxvar / 2);
+	b.alloc(maxvar / 2);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
+			std::cout << va << " * " << vb << " = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++) {
+		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+	}
+
+	do_cnf_header();
+
+	if (greater)
+		(a > b).equal_to_const(false);
+
+	do_mul_linear_v4(a,b).equal_to_var(f);
+
+	set_values(a,b,f);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 generate_full_add_linear_cnf(void)
 {
 top:
@@ -1422,7 +1594,7 @@ top:
 }
 
 static void
-generate_sqr_linear_cnf(void)
+generate_sqr_linear_cnf_v1(void)
 {
 top:
 	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
@@ -1467,6 +1639,46 @@ top:
 	}
 
 	e.equal_to_var(f);
+
+	set_values(a,var_t(),f);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_sqr_linear_cnf_v2(void)
+{
+top:
+	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
+	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t f;
+	var_t e;
+
+	a.alloc(maxvar / 2);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, var_t(),
+				       vf, f) == 0) {
+			std::cout << "sqrt(" << vf << ") = " << va << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
+
+	do_cnf_header();
+
+	do_sqr_linear_v2(a).equal_to_var(f);
 
 	set_values(a,var_t(),f);
 
@@ -2262,7 +2474,9 @@ usage(void)
 	fprintf(stderr, "	-f 21  # Generate linear square divisor\n");
 	fprintf(stderr, "	-f 22  # Generate linear multiplier (v5)\n");
 	fprintf(stderr, "	-f 23  # Generate linear squarer (v2)\n");
-	fprintf(stderr, "	-f 24  # Generate half multiplier\n");
+	fprintf(stderr, "	-f 24  # Generate full adder\n");
+	fprintf(stderr, "	-f 25  # Generate linear square (v2)\n");
+	fprintf(stderr, "	-f 26  # Generate linear multiplier (v6)\n");
 	exit(EX_USAGE);
 }
 
@@ -2370,7 +2584,7 @@ main(int argc, char **argv)
 		generate_mul_linear_v1_cnf();
 		break;
 	case 4:
-		generate_sqr_linear_cnf();
+		generate_sqr_linear_cnf_v1();
 		break;
 	case 5:
 		generate_zero_mod_linear_cnf();
@@ -2433,6 +2647,12 @@ main(int argc, char **argv)
 		break;
 	case 24:
 		generate_full_add_linear_cnf();
+		break;
+	case 25:
+		generate_sqr_linear_cnf_v2();
+		break;
+	case 26:
+		generate_mul_linear_v5_cnf();
 		break;
 	default:
 		usage();
