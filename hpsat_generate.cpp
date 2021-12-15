@@ -961,33 +961,32 @@ do_mul_linear_v2(const var_t &a, const var_t &b, const var_t &zero)
 }
 
 static void
-do_half_mul_linear(const var_t &a, const var_t &b, const var_t &r)
+do_full_add_linear(const variable_t *pa, const variable_t *pb,
+    const variable_t *pr, size_t a_size, size_t b_size)
 {
-	variable_t t[maxvar][maxvar];
+	variable_t t[a_size + 1][b_size + 1];
 
 	/* allocate variables */
-	for (size_t x = 1; x != maxvar; x++) {
-		for (size_t y = 1; y != maxvar - 1; y++) {
+	for (size_t x = 1; x != a_size + 1; x++) {
+		for (size_t y = 1; y != b_size; y++) {
 			t[x][y] = new_variable();
 		}
 	}
 
 	/* setup variables */
-	for (size_t x = 0; x != maxvar; x++) {
-		t[x][0] = a.z[x];
-		t[0][x] = b.z[x];
-		t[x][maxvar - 1] = r.z[x];
+	for (size_t x = 1; x != a_size + 1; x++) {
+		t[x][0] = pa[x - 1];
+		t[x][b_size] = pr[x - 1];
 	}
+	for (size_t x = 1; x != b_size + 1; x++)
+		t[0][x] = ~pb[x - 1];
 
-	/* 0,0 is shared */
-	a.z[0].equal_to_var(b.z[0]);
-
-	/* 0,N-1 is shared */
-	b.z[maxvar - 1].equal_to_var(r.z[0]);
+	/* set carry in to zero */
+	t[0][0] = zerovar;
 
 	/* build logic */
-	for (size_t x = 0; x < maxvar - 1; x++) {
-		for (size_t y = 0; y < maxvar - 1; y++) {
+	for (size_t x = 0; x != a_size; x++) {
+		for (size_t y = 0; y != b_size; y++) {
 			do_mul_half_v1(t[x+1][y+1],
 				       t[x+1][y],
 				       t[x][y+1],
@@ -1281,11 +1280,11 @@ top:
 }
 
 static void
-generate_half_mul_linear_cnf(void)
+generate_full_add_linear_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear HPS multiplication of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf("c The following CNF computes the full adition of two " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit sum: f(a, b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1303,14 +1302,15 @@ top:
 		while (input_variables(va, a,
 				       vb, b,
 				       vf, f) == 0) {
-			std::cout << va << " * " << vb << " = " << vf << "\n";
+			std::cout << va << " + " << vb.get_str(2) << " = " << vf <<
+			    " D=" << vf - va << "\n";
 		}
 		return;
 	}
 
 	do_cnf_header();
 
-	do_half_mul_linear(a, b, f);
+	do_full_add_linear(a.z, b.z, f.z, maxvar, maxvar);
 
 	for (size_t z = 0; z != maxvar; z++)
 		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
@@ -2432,7 +2432,7 @@ main(int argc, char **argv)
 		generate_zero_mul_linear_cnf(true);
 		break;
 	case 24:
-		generate_half_mul_linear_cnf();
+		generate_full_add_linear_cnf();
 		break;
 	default:
 		usage();
