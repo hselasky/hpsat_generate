@@ -1035,16 +1035,16 @@ do_sqr_linear_v2(const var_t &a)
 		size_t as = 0;
 
 		for (size_t log2 = 0;; log2++) {
-			if ((1UL << log2) > (n + (n + 1) / 2)) {
-				as = log2;
+			if ((1UL << log2) >= (n + (n + 1) / 2)) {
+				as = log2 + 1;
 				break;
 			}
 		}
 
-		if (as == 0)
+		if (as == 0 || n == 0)
 			continue;
 
-		if (p + as >= maxvar)
+		if (p + as > maxvar)
 			as = maxvar - p;
 
 		tn = t;
@@ -1097,16 +1097,16 @@ do_mul_linear_v4(const var_t &a, const var_t &b)
 		size_t as = 0;
 
 		for (size_t log2 = 0;; log2++) {
-			if ((1UL << log2) > (n + (n + 1) / 2)) {
-				as = log2;
+			if ((1UL << log2) >= (n + (n + 1) / 2)) {
+				as = log2 + 1;
 				break;
 			}
 		}
 
-		if (as == 0)
+		if (as == 0 || n == 0)
 			continue;
 
-		if (p + as >= maxvar)
+		if (p + as > maxvar)
 			as = maxvar - p;
 
 		tn = t;
