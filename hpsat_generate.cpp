@@ -344,6 +344,31 @@ public:
 		return (r);
 	};
 
+	var_t log() const {
+		var_t r;
+		var_t t = *this;
+
+		z[0].equal_to_const(true);
+
+		for (size_t x = 1; x != maxvar; x++) {
+			r.z[x] = t.z[x];
+			t = t + ((t & t.z[x]) << x);
+		}
+		return (r);
+	};
+
+	var_t exp() const {
+		var_t r;
+
+		z[0].equal_to_const(false);
+
+		r.z[0] = -zerovar;
+
+		for (size_t x = 1; x != maxvar; x++)
+			r += (r & z[x]) << x;
+		return (r);
+	};
+
 	var_t mul_xor(const var_t &other) const {
 		var_t r;
 		for (size_t x = 0; x != maxvar; x++) {
@@ -2439,6 +2464,134 @@ top:
 }
 
 static void
+generate_log_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the logarithm of odd value \"a\" " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit result: log(a) = " << r_value << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t f;
+	var_t e;
+
+	a.alloc(maxvar);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, var_t(),
+				       vf, f) == 0) {
+			std::cout << "log(" << va << ") = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in log(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	a.log().equal_to_var(f);
+
+	set_values(a,var_t(),f);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_dual_log_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the logarithm of odd value \"a\" and \"b\" " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit result: log(a * b) = " << r_value << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t b;
+	var_t c;
+	var_t d;
+	var_t f;
+	var_t e;
+
+	a.alloc();
+	b.alloc();
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, b,
+				       vf, f) == 0) {
+			std::cout << "log(" << va << " * " << vb << ") = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in log(" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	c = a.log();
+	d = b.log();
+
+	(c & d).equal_to_const(false);
+	(c ^ d).equal_to_var(f);
+
+	set_values(a,b,f);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
+generate_exp_cnf(void)
+{
+top:
+	outcnf("c The following CNF computes the exponent of even value \"a\" " << maxvar << " bit\n"
+	       "c variables into a " << maxvar << " bit result: exp(a) = " << r_value << "\n");
+
+	do_cnf_reset();
+
+	var_t a;
+	var_t f;
+	var_t e;
+
+	a.alloc(maxvar);
+	f.alloc();
+
+	if (do_parse) {
+		mpz_class va,vb,vf;
+
+		while (input_variables(va, a,
+				       vb, var_t(),
+				       vf, f) == 0) {
+			std::cout << "exp(" << va << ") = " << vf << "\n";
+		}
+		return;
+	}
+
+	for (size_t z = 0; z != maxvar; z++)
+		outcnf("c Solution in exp(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+
+	do_cnf_header();
+
+	a.exp().equal_to_var(f);
+
+	set_values(a,var_t(),f);
+
+	if (runs++ == 0)
+		goto top;
+}
+
+static void
 usage(void)
 {
 	fprintf(stderr, "Usage: hpsat_generate [-h] -f <n> -b <bits 1..%d> [-g] [-r] [-v <value> ]\n", MAXVAR);
@@ -2477,6 +2630,9 @@ usage(void)
 	fprintf(stderr, "	-f 24  # Generate full adder\n");
 	fprintf(stderr, "	-f 25  # Generate linear square (v2)\n");
 	fprintf(stderr, "	-f 26  # Generate linear multiplier (v6)\n");
+	fprintf(stderr, "	-f 27  # Generate non-linear log()\n");
+	fprintf(stderr, "	-f 28  # Generate non-linear exp()\n");
+	fprintf(stderr, "	-f 29  # Generate dual non-linear log()\n");
 	exit(EX_USAGE);
 }
 
@@ -2653,6 +2809,15 @@ main(int argc, char **argv)
 		break;
 	case 26:
 		generate_mul_linear_v5_cnf();
+		break;
+	case 27:
+		generate_log_cnf();
+		break;
+	case 28:
+		generate_exp_cnf();
+		break;
+	case 29:
+		generate_dual_log_cnf();
 		break;
 	default:
 		usage();
