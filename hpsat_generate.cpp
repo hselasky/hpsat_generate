@@ -698,7 +698,7 @@ variable_t :: operator &(const variable_t &other) const
 		 * a + b - 2 * c - d = 0
 		 */
 		const int c = new_variable();
-		const int d = 0; //new_variable();
+		const int d = new_variable();
 
 		outcnf("v" << v << " + v" << other.v << " - 2 * v" << c << " - v" << d << "\n");
 		nexpr++;
@@ -753,7 +753,7 @@ variable_t :: operator ^(const variable_t &other) const
 		 * a + b - 2 * c - d = 0
 		 */
 		const int c = new_variable();
-		const int d = 0; //new_variable();
+		const int d = new_variable();
 
 		outcnf("v" << v << " + v" << other.v << " + v" << c << " - 2 * v" << d << "\n");
 		nexpr++;
