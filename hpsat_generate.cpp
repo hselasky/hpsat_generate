@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020-2021 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2020-2022 Hans Petter Selasky.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -58,6 +58,8 @@ static int do_parse;
 static int has_a_value;
 static int has_b_value;
 static int has_r_value;
+static int output_format;
+static const char *comment = "c";
 
 #define	outcnf(...) do { \
     if (runs) \
@@ -117,12 +119,18 @@ do_cnf_reset(void)
 static void
 do_cnf_header(void)
 {
-	if (varlimit)
-		outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << " " << varnum - 1 << "\n");
-	else
-		outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << "\n");
+	if (output_format != 0) {
+		outcnf(comment << " " << (old_varnum - 1) << " variables and " << old_nexpr << " expressions\n");
+		outcnf("v0\n");
+		outcnf("v1\n");
+	} else {
+		if (varlimit)
+			outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << " " << varnum - 1 << "\n");
+		else
+			outcnf("p cnf " << old_varnum - 1 << " " << old_nexpr << "\n");
 
-	(variable_t(zerovar)).equal_to_const(false);
+		(variable_t(zerovar)).equal_to_const(false);
+	}
 }
 
 class var_t {
@@ -628,45 +636,18 @@ out_triplet(int a, int b, int c)
 	nexpr++;
 }
 
-static void
-out_dual(int a, int b)
-{
-	int array[2];
-	int t;
-
-	assert(a != 0);
-	assert(b != 0);
-
-	array[0] = a;
-	array[1] = b;
-
-	for (a = 0; a != 2; a++) {
-		for (b = a + 1; b != 2; b++) {
-			if (array[a] > array[b]) {
-				t = array[b];
-				array[b] = array[a];
-				array[a] = t;
-			}
-		}
-	}
-
-	for (t = a = 0; a != 2; a++) {
-		if (array[a] != t) {
-			t = array[a];
-			outcnf(t << " ");
-		}
-	}
-	outcnf("0\n");
-	nexpr++;
-}
-
 void
 variable_t :: equal_to_const(bool value) const
 {
 	assert(v != 0);
 
-	outcnf((value ? v : -v) << " 0\n");
-	nexpr++;
+	if (output_format != 0) {
+		outcnf("v" << v << " - " << value << "\n");
+		nexpr++;
+	} else {
+		outcnf((value ? v : -v) << " 0\n");
+		nexpr++;
+	}
 }
 
 void
@@ -674,9 +655,14 @@ variable_t :: equal_to_var(const variable_t &other) const
 {
 	assert(v != 0 && other.v != 0);
 
-	outcnf(-v << " " << other.v << " 0\n");
-	outcnf(v << " " << -other.v << " 0\n");
-	nexpr += 2;
+	if (output_format != 0) {
+		outcnf("v" << v << " - v" << other.v << "\n");
+		nexpr++;
+	} else {
+		outcnf(-v << " " << other.v << " 0\n");
+		outcnf(v << " " << -other.v << " 0\n");
+		nexpr += 2;
+	}
 }
 
 void
@@ -706,6 +692,18 @@ variable_t :: operator &(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (zerovar);
+	} else if (output_format != 0) {
+		/*
+		 * Truth table:
+		 * a + b - 2 * c - d = 0
+		 */
+		const int c = new_variable();
+		const int d = 0; //new_variable();
+
+		outcnf("v" << v << " + v" << other.v << " - 2 * v" << c << " - v" << d << "\n");
+		nexpr++;
+
+		return (c);
 	} else {
 		/*
 		 * Truth table:
@@ -749,6 +747,18 @@ variable_t :: operator ^(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (-zerovar);
+	} else if (output_format != 0) {
+		/*
+		 * Truth table:
+		 * a + b - 2 * c - d = 0
+		 */
+		const int c = new_variable();
+		const int d = 0; //new_variable();
+
+		outcnf("v" << v << " + v" << other.v << " + v" << c << " - 2 * v" << d << "\n");
+		nexpr++;
+
+		return (c);
 	} else {
 		const int a = new_variable();
 
@@ -780,6 +790,12 @@ variable_t :: operator |(const variable_t &other) const
 	} else if (v == -other.v) {
 		/* inverted same variable */
 		return (-zerovar);
+	} else if (output_format != 0) {
+		/*
+		 * Truth table:
+		 * a | b = a ^ b ^ (a & b)
+		 */
+		return (*this ^ other ^ (*this & other));
 	} else {
 		const int a = new_variable();
 
@@ -1175,8 +1191,8 @@ static void
 generate_adder_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the addition of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the addition of two " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1200,7 +1216,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1221,8 +1237,8 @@ static void
 generate_mul_2adic_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the 2-adic multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the 2-adic multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1247,7 +1263,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1268,8 +1284,8 @@ static void
 generate_mul_linear_v1_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1293,7 +1309,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1312,8 +1328,8 @@ static void
 generate_mul_linear_v2_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1338,7 +1354,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1359,8 +1375,8 @@ static void
 generate_mul_linear_v3_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1384,7 +1400,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1404,8 +1420,8 @@ generate_mul_linear_v4_cnf(void)
 {
 	mpz_class r_value_sqrt = sqrt(r_value);
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1431,7 +1447,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++) {
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 		g.z[z].v = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
 	}
 
@@ -1459,8 +1475,8 @@ static void
 generate_mul_linear_v5_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1485,7 +1501,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++) {
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 	}
 
 	do_cnf_header();
@@ -1505,8 +1521,8 @@ static void
 generate_full_add_linear_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the full adition of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: f(a, b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the full adition of two " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit sum: f(a, b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1535,7 +1551,7 @@ top:
 	do_full_add_linear(a.z, b.z, f.z, maxvar, maxvar);
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	set_values(a,b,f);
 
@@ -1548,8 +1564,8 @@ generate_mul_linear_limit_cnf(void)
 {
 	mpz_class r_value_sqrt = sqrt(r_value);
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1575,7 +1591,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	for (size_t z = 0; z != maxvar; z++)
 		g.z[z] = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
@@ -1598,8 +1614,8 @@ static void
 generate_mul_linear_by_squaring_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * a) - (b * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * a) - (b * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1624,7 +1640,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1647,8 +1663,8 @@ static void
 generate_sqr_linear_cnf_v1(void)
 {
 top:
-	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
-	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear square root of a " << maxvar << " bit\n" <<
+	       comment << " variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1671,7 +1687,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
+		outcnf(comment << " Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1700,8 +1716,8 @@ static void
 generate_sqr_linear_cnf_v2(void)
 {
 top:
-	outcnf("c The following CNF computes the linear square root of a " << maxvar << " bit\n"
-	       "c variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear square root of a " << maxvar << " bit\n" <<
+	       comment << " variables into a " << (maxvar / 2) << " bit result: sqrt(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1724,7 +1740,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
+		outcnf(comment << " Solution in sqrt(" << f.z[z].v << ") = " << a.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1740,8 +1756,8 @@ static void
 generate_zero_mod_linear_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the linear modulus of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a % b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear modulus of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a % b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1763,7 +1779,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << f.z[z].v << " % " << a.z[z].v << " = 0\n");
+		outcnf(comment << " Solution in " << f.z[z].v << " % " << a.z[z].v << " = 0\n");
 
 	do_cnf_header();
 
@@ -1779,8 +1795,8 @@ static void
 generate_zero_mul_linear_cnf(bool isSquare)
 {
 top:
-	outcnf("c The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the linear multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -1807,7 +1823,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << f.z[z].v << " = " << a.z[z].v << " * " << b.z[z].v << "\n");
+		outcnf(comment << " Solution in " << f.z[z].v << " = " << a.z[z].v << " * " << b.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -1823,8 +1839,8 @@ static void
 generate_and_cnf(void)
 {
 top:
-	outcnf("c The following CNF implements an AND circuit\n"
-	       "c having two inputs and one output\n");
+	outcnf(comment << " The following CNF implements an AND circuit\n" <<
+	       comment << " having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1843,7 +1859,7 @@ top:
 		return;
 	}
 
-	outcnf("c Solution in " << a.v << " & " << b.v << " = " << c.v << "\n");
+	outcnf(comment << " Solution in " << a.v << " & " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -1860,8 +1876,8 @@ static void
 generate_or_cnf(void)
 {
 top:
-	outcnf("c The following CNF implements an OR circuit\n"
-	       "c having two inputs and one output\n");
+	outcnf(comment << " The following CNF implements an OR circuit\n" <<
+	       comment << " having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1880,7 +1896,7 @@ top:
 		return;
 	}
 
-	outcnf("c Solution in " << a.v << " | " << b.v << " = " << c.v << "\n");
+	outcnf(comment << " Solution in " << a.v << " | " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -1897,8 +1913,8 @@ static void
 generate_xor_cnf(void)
 {
 top:
-	outcnf("c The following CNF implements an XOR circuit\n"
-	       "c having two inputs and one output\n");
+	outcnf(comment << " The following CNF implements an XOR circuit\n" <<
+	       comment << " having two inputs and one output\n");
 
 	do_cnf_reset();
 
@@ -1917,7 +1933,7 @@ top:
 		return;
 	}
 
-	outcnf("c Solution in " << a.v << " ^ " << b.v << " = " << c.v << "\n");
+	outcnf(comment << " Solution in " << a.v << " ^ " << b.v << " = " << c.v << "\n");
 
 	do_cnf_header();
 
@@ -2045,9 +2061,9 @@ generate_input_cnf(void)
 	maxvar = generate_input_maxvar(inputexpr, &mask);
 
 top:
-	outcnf("c This CNF-file implements the following expression\n"
-	       "c\n"
-	       "c   '" << inputexpr << "'\n"
+	outcnf(comment << " This CNF-file implements the following expression\n"
+	       "c\n" <<
+	       comment << "   '" << inputexpr << "'\n"
 	       "c\n");
 
 	do_cnf_reset();
@@ -2071,12 +2087,12 @@ top:
 		return;
 	}
 
-	outcnf("c Variable mapping used:\n"
+	outcnf(comment << " Variable mapping used:\n"
 	       "c\n");
 	for (size_t x = 0; x != maxvar; x++) {
 		if (~(mask >> x) & 1)
 			continue;
-		outcnf("c   '" << (char)('a' + x) << "' = " << var.z[x].v << "\n");
+		outcnf(comment << "   '" << (char)('a' + x) << "' = " << var.z[x].v << "\n");
 	}
 	outcnf("c\n"
 	       "c\n");
@@ -2101,10 +2117,10 @@ generate_div_linear_v1_cnf(bool isSquare)
 {
 	mpz_class r_value_sqrt = sqrt(r_value);
 top:
-	outcnf("c The following CNF computes a divisor\n"
-	       "c having " << (maxvar / 2) << " bits for each variable and\n"
-	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << r_value << "\n");
+	outcnf(comment << " The following CNF computes a divisor\n" <<
+	       comment << " having " << (maxvar / 2) << " bits for each variable and\n" <<
+	       comment << " having " << maxvar << " bits for the result.\n" <<
+	       comment << " The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2133,7 +2149,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " / " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	for (size_t z = 0; z != maxvar; z++)
 		g.z[z].v = (((r_value_sqrt >> z) & 1) != 0) ? -zerovar : zerovar;
@@ -2166,10 +2182,10 @@ static void
 generate_inv_multiplier_v1_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes an inverse multiplier\n"
-	       "c having " << maxvar << " bits for each variable and\n"
-	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << r_value << "\n");
+	outcnf(comment << " The following CNF computes an inverse multiplier\n" <<
+	       comment << " having " << maxvar << " bits for each variable and\n" <<
+	       comment << " having " << maxvar << " bits for the result.\n" <<
+	       comment << " The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2195,7 +2211,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in (" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in (" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2239,10 +2255,10 @@ static void
 generate_inv_2adic_multiplier_v1_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes an inverse multiplier\n"
-	       "c having " << maxvar << " bits for each variable and\n"
-	       "c having " << maxvar << " bits for the result.\n"
-	       "c The starting point for the division is " << r_value << "\n");
+	outcnf(comment << " The following CNF computes an inverse multiplier\n" <<
+	       comment << " having " << maxvar << " bits for each variable and\n" <<
+	       comment << " having " << maxvar << " bits for the result.\n" <<
+	       comment << " The starting point for the division is " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2268,7 +2284,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in (" << a.z[z].v << " x " << b.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in (" << a.z[z].v << " x " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2312,8 +2328,8 @@ static void
 generate_mul_2adic_rol_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the 2-adic rotating multiplication of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the 2-adic rotating multiplication of two " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2337,7 +2353,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2356,8 +2372,8 @@ static void
 generate_exp_2adic_rol_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the 2-adic rotating exponent of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit product: (a ** b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the 2-adic rotating exponent of two " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit product: (a ** b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2381,7 +2397,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " x " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2400,8 +2416,8 @@ static void
 generate_polar_add_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the polar addition of two " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the polar addition of two " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit sum: (a + b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2425,7 +2441,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " + " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2446,8 +2462,8 @@ static void
 generate_polar_mul_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the polar multiplication of two " << (maxvar / 2) << " bit\n"
-	       "c variables into a " << maxvar << " bit sum: (a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the polar multiplication of two " << (maxvar / 2) << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit sum: (a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2471,7 +2487,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in " << a.z[z].v << " * " << b.z[z].v << " = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2492,8 +2508,8 @@ static void
 generate_log_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the logarithm of odd value \"a\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: log(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the logarithm of odd value \"a\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: log(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2516,7 +2532,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in log(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in log(" << a.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2532,8 +2548,8 @@ static void
 generate_dual_log_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the logarithm of odd value \"a\" and \"b\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: log(a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the logarithm of odd value \"a\" and \"b\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: log(a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2560,7 +2576,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in log(" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in log(" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2580,8 +2596,8 @@ static void
 generate_exp_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the exponent of even value \"a\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: exp(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the exponent of even value \"a\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: exp(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2604,7 +2620,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in exp(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in exp(" << a.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2620,8 +2636,8 @@ static void
 generate_log_xor_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the XOR logarithm of odd value \"a\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: log_xor(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the XOR logarithm of odd value \"a\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: log_xor(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2644,7 +2660,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in log_xor(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in log_xor(" << a.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2660,8 +2676,8 @@ static void
 generate_dual_log_xor_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the XOR logarithm of odd value \"a\" and \"b\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: log_xor(a * b) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the XOR logarithm of odd value \"a\" and \"b\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: log_xor(a * b) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2688,7 +2704,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in log_xor(" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in log_xor(" << a.z[z].v << " * " << b.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2708,8 +2724,8 @@ static void
 generate_exp_xor_cnf(void)
 {
 top:
-	outcnf("c The following CNF computes the XOR exponent of even value \"a\" " << maxvar << " bit\n"
-	       "c variables into a " << maxvar << " bit result: exp_xor(a) = " << r_value << "\n");
+	outcnf(comment << " The following CNF computes the XOR exponent of even value \"a\" " << maxvar << " bit\n" <<
+	       comment << " variables into a " << maxvar << " bit result: exp_xor(a) = " << r_value << "\n");
 
 	do_cnf_reset();
 
@@ -2732,7 +2748,7 @@ top:
 	}
 
 	for (size_t z = 0; z != maxvar; z++)
-		outcnf("c Solution in exp_xor(" << a.z[z].v << ") = " << f.z[z].v << "\n");
+		outcnf(comment << " Solution in exp_xor(" << a.z[z].v << ") = " << f.z[z].v << "\n");
 
 	do_cnf_header();
 
@@ -2751,6 +2767,7 @@ usage(void)
 	fprintf(stderr, "	-V     # output variable limit in CNF header\n");
 	fprintf(stderr, "	-p     # pretty print result from solver via standard input\n");
 	fprintf(stderr, "	-g     # b >= a\n");
+	fprintf(stderr, "	-R     # use output format suitable for hpRsat\n");
 	fprintf(stderr, "	-A <X> # specify \"A\" value\n");
 	fprintf(stderr, "	-B <X> # specify \"B\" value\n");
 	fprintf(stderr, "	-v <X> # specify resulting value\n");
@@ -2795,11 +2812,15 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	const char *const optstring = "ghf:cb:rv:Vi:pA:B:";
+	const char *const optstring = "ghf:cb:rv:Vi:pA:B:R";
 	int ch;
 
 	while ((ch = getopt(argc, argv, optstring)) != -1) {
 		switch (ch) {
+		case 'R':
+			output_format = 1;
+			comment = "#";
+			break;
 		case 'p':
 			do_parse = 1;
 			break;
