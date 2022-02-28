@@ -66,6 +66,13 @@ static const char *comment = "c";
 	std::cout << __VA_ARGS__; \
 } while (0)
 
+#define	outvar(v) do { \
+    if ((v) < 0) \
+	outcnf("(1 - v" << -v << ")"); \
+    else \
+        outcnf("v" << v); \
+} while (0)
+
 static int
 new_variable(void)
 {
@@ -642,7 +649,7 @@ variable_t :: equal_to_const(bool value) const
 	assert(v != 0);
 
 	if (output_format != 0) {
-		outcnf("v" << v << " - " << value << "\n");
+		outvar(v); outcnf(" - " << value << "\n");
 		nexpr++;
 	} else {
 		outcnf((value ? v : -v) << " 0\n");
@@ -656,7 +663,7 @@ variable_t :: equal_to_var(const variable_t &other) const
 	assert(v != 0 && other.v != 0);
 
 	if (output_format != 0) {
-		outcnf("v" << v << " - v" << other.v << "\n");
+		outvar(v); outcnf(" - "); outvar(other.v); outcnf("\n");
 		nexpr++;
 	} else {
 		outcnf(-v << " " << other.v << " 0\n");
@@ -700,7 +707,7 @@ variable_t :: operator &(const variable_t &other) const
 		const int c = new_variable();
 		const int d = new_variable();
 
-		outcnf("v" << v << " + v" << other.v << " - 2 * v" << c << " - v" << d << "\n");
+		outvar(v); outcnf(" + "); outvar(other.v); outcnf(" - 2 * "); outvar(c); outcnf(" - "); outvar(d); outcnf("\n");
 		nexpr++;
 
 		return (c);
@@ -755,7 +762,7 @@ variable_t :: operator ^(const variable_t &other) const
 		const int c = new_variable();
 		const int d = new_variable();
 
-		outcnf("v" << v << " + v" << other.v << " + v" << c << " - 2 * v" << d << "\n");
+		outvar(v); outcnf(" + "); outvar(other.v); outcnf(" + "); outvar(c); outcnf(" - 2 * "); outvar(d); outcnf("\n");
 		nexpr++;
 
 		return (c);
